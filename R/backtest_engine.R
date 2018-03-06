@@ -44,12 +44,14 @@ add_indicator <- function(strategy_object, indicator_name, generator, generator_
 #' @param strategy_object a \code{\link{strategy}} object
 #' @param signal_name the desired column name of the signal, used to build rules
 #' @param signal a logical argument based on the indicator columns of the security object
+#' @param direction the direction of the market bet, long or short
+#' @param crossover defines whether signal should be a crossover signal. If TRUE, the signal will only occur on first bar of each run of signal condition being met.
 #'
 #' @return a strategy object with signal applied to all securities
 #' @export
 #'
 #' @examples
-add_signal <- function(strategy_object, signal_name, signal){
+add_signal <- function(strategy_object, signal_name, signal, direction = "long", crossover = TRUE){
 
   #Sanity Check
   if(!any(class(strategy_object) == "fc_strategy")) stop("add_signal can only be applied to a strategy object.")
@@ -60,8 +62,18 @@ add_signal <- function(strategy_object, signal_name, signal){
     #load column names into the R search path for evaluation of the signal string
     attach(security)
 
-    #Parse the logical argument in the signal string, and put TRUE/FALSE in the signal_name column
-    security[signal_name] <- eval(parse(text = signal))
+    sig_result <- eval(parse(text = signal))
+    sig_result <- ifelse(sig_result != 0 | is.na(sig_result),0, 1) #Convert to 1s and 0s. NAs are zeroed (no signal)
+    if(direction == "short") sig_result <- -sig_result #if short, use negative position
+
+    if(crossover == TRUE){
+
+    sig_result <- ifelse(sig_result != 0 & dplyr::lag(sig_result, n = 1L) != sig_result, sig_result, 0)
+
+    }
+
+    #Parse the logical argument in the signal string, and put 1/-1 in the signal_name column depending on direction argument
+    security[signal_name] <- sig_result
 
     #clean up
     detach(security)
