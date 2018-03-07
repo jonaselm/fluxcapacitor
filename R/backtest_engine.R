@@ -131,5 +131,22 @@ strategy <- function(universe){
 
 }
 
+backtest <- function(strategy_object, ordersize = "100", use_price = "CLOSE", tx_fees = 0){
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
