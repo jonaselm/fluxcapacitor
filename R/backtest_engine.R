@@ -39,7 +39,7 @@ add_indicator <- function(strategy_object, indicator_name, generator, generator_
 
 #' Add a signal to your strategy
 #'
-#' Determines whether a signal has occurred based on an indicator, and adds it to a column in each security's timeseries data.
+#' Determines whether a signal has occurred based on one or more columns in the strategy data, and adds it to a column in each security's timeseries data.
 #'
 #' @param strategy_object a \code{\link{strategy}} object
 #' @param signal_name the desired column name of the signal, used to build rules
@@ -101,7 +101,6 @@ add_signal <- function(strategy_object, signal_name, signal, direction = "long",
 #'
 #' @examples
 #' data(SPX)
-#' SPX <- SPX %>% xts_to_tibble()
 #' strat <- strategy("SPX")
 #'
 strategy <- function(universe){
@@ -131,9 +130,52 @@ strategy <- function(universe){
 
 }
 
-backtest <- function(strategy_object, ordersize = "100", use_price = "CLOSE", tx_fees = 0){
+backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLOSE", tx_fees = 0){
 
+  #Sanity Check
+  if(!any(class(strategy_object) == "fc_strategy")) stop("backtesting can only be performed on a fluxcapacitor strategy object.")
 
+  #Find first date in strategy data
+  start_date <- base::as.Date(min(unlist(purrr::map(strategy_object$Data, ~ min(.$Date)))), origin="1970-01-01")
+
+  #End date in strategy data
+  end_date <- base::as.Date(max(unlist(purrr::map(strategy_object$Data, ~ max(.$Date)))), origin="1970-01-01")
+  date_sequence <- seq.Date(start_date, end_date, 1)
+
+  #Add orderbook to strategy object
+  orderbook <- tibble()
+  ledger <- tibble(Date = date_sequence)
+
+  #loop over all dates in date_sequence - for future versions, Rcpp vs. parallel for speed increase?
+  for(i in seq_along(date_sequence)){
+    #loop over all securities in strategy data
+    for(j in seq_along(strategy_object$Data)){
+      #if the date exists and a trade is signaled, apply trade logic
+      if(nrow(strategy_object$Data[[j]] %>% filter(Date == date_sequence[i])) > 0){
+        if(strategy_object$Data[[j]][[signals]][[which(strategy_object$Data[[j]]$Date == date_sequence[i])]] != 0){
+
+          #Use next bar's price for tx_price
+          tx_price <- strategy_object$Data[[j]][[use_price]][[which(strategy_object$Data[[j]]$Date == date_sequence[i])+1]]
+
+          trade_data <- tibble(Trade_ID = nrow(orderbook) + 1,
+                               Date = date_sequence[i],
+                               Ticker = names(strategy_object$Data)[j],
+                               Trade_Price = tx_price,
+                               Size = ordersize,
+                               Cost = ordersize * tx_price + tx_fees)
+
+          orderbook <- orderbook %>% rbind(trade_data)
+
+        }
+
+      }
+
+    }
+  }
+
+  strategy_object$orderbook <- orderbook
+
+  return(strategy_object)
 
 }
 
