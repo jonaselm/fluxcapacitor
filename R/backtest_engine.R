@@ -19,18 +19,12 @@ add_indicator <- function(strategy_object, indicator_name, generator, generator_
   #Sanity Check
   if(!any(class(strategy_object) == "fc_strategy")) stop("add_indicator can only be applied to a strategy object.")
 
-  #Add indicator to each security dataset in the strategy universe
-  strategy_object$Data <- purrr::map(strategy_object$Data, function(security){
+  indicator <- paste(generator, "(", paste(as.character(generator_args), collapse = ", "), ")", sep = "")
+  strategy_object$Data <- lapply(strategy_object$Data, function(security){
 
-    #load column names into the R search path for evaluation of the signal string
-    attach(security)
-    security[indicator_name] <- do.call(generator, generator_args)
+    security %>% dplyr::mutate(!!indicator_name := eval(parse(text = indicator)))
 
-    #clean up
-    detach(security)
-    return(security)
-  } )
-
+  })
 
   return(strategy_object)
 
@@ -57,28 +51,26 @@ add_signal <- function(strategy_object, signal_name, signal, direction = "long",
   if(!any(class(strategy_object) == "fc_strategy")) stop("add_signal can only be applied to a strategy object.")
 
   #Add indicator to each security dataset in the strategy universe
-  strategy_object$Data <- purrr::map(strategy_object$Data, function(security){
 
-    #load column names into the R search path for evaluation of the signal string
-    attach(security)
+  strategy_object$Data <- lapply(strategy_object$Data, function(security){
 
-    sig_result <- eval(parse(text = signal))
-    sig_result <- ifelse(sig_result != 0 | is.na(sig_result),0, 1) #Convert to 1s and 0s. NAs are zeroed (no signal)
+    sig_result <- security %>% dplyr::transmute(!!signal_name := eval(parse(text = signal)))
+
+    sig_result <- ifelse(sig_result == 0 | is.na(sig_result),0, 1) #Convert to 1s and 0s. NAs are zeroed (no signal)
+
     if(direction == "short") sig_result <- -sig_result #if short, use negative position
 
     if(crossover == TRUE){
 
-    sig_result <- ifelse(sig_result != 0 & dplyr::lag(sig_result, n = 1L) != sig_result, sig_result, 0)
-
+      sig_result <- ifelse(sig_result != 0 & dplyr::lag(sig_result, n = 1L) != sig_result, sig_result, 0)
     }
 
     #Parse the logical argument in the signal string, and put 1/-1 in the signal_name column depending on direction argument
     security[signal_name] <- sig_result
 
-    #clean up
-    detach(security)
-    return(security)
-  } )
+    security
+
+  })
 
   return(strategy_object)
 
@@ -120,7 +112,6 @@ strategy <- function(universe){
     if(tibble::is.tibble(strat_data[[ticker]])) return(strat_data[[ticker]])
   })
 
-
   strat_object <- list( Universe = universe,
                         Data = set_names(strat_data, universe)
                         )
@@ -130,7 +121,7 @@ strategy <- function(universe){
 
 }
 
-backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLOSE", tx_fees = 0){
+backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLOSE", tx_fees = 0, init_equity = 100000){
 
   #Sanity Check
   if(!any(class(strategy_object) == "fc_strategy")) stop("backtesting can only be performed on a fluxcapacitor strategy object.")
@@ -142,38 +133,121 @@ backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLO
   end_date <- base::as.Date(max(unlist(purrr::map(strategy_object$Data, ~ max(.$Date)))), origin="1970-01-01")
   date_sequence <- seq.Date(start_date, end_date, 1)
 
-  #Add orderbook to strategy object
-  orderbook <- tibble()
-  ledger <- tibble(Date = date_sequence)
+  #Create Progress Bar
+  pb <- txtProgressBar(style = 3)
+
+  #Initialize orderbook and ledger
+  consolidated_orderbook <- tibble()
+  ledger <- tibble(Date = start_date-1, Description = "Strategy Initialized", Cash = init_equity, Cost = 0, Equities = 0, Acct_Val = init_equity)
+
+  #Initialize Date, Price, Position, Weight, Cost, and Value for each security orderbook
+  strategy_object$Positions <- lapply(strategy_object$Data, function(security){
+
+    security %>% select(Date, !!use_price) %>% mutate(Position = 0, Weight = 0, Cost = 0, Value = 0)
+
+  })
+
+  portfolio_cash <- init_equity
+  Acct_Val <- init_equity
+
 
   #loop over all dates in date_sequence - for future versions, Rcpp vs. parallel for speed increase?
   for(i in seq_along(date_sequence)){
+
+    #Reset daily aggregate ledger values to zero each day
+    ledger_cost <- 0
+    ledger_value <- 0
+
     #loop over all securities in strategy data
     for(j in seq_along(strategy_object$Data)){
-      #if the date exists and a trade is signaled, apply trade logic
+
+      #if the date exists for day i...
       if(nrow(strategy_object$Data[[j]] %>% filter(Date == date_sequence[i])) > 0){
+        #and if a trade is signalled
         if(strategy_object$Data[[j]][[signals]][[which(strategy_object$Data[[j]]$Date == date_sequence[i])]] != 0){
 
           #Use next bar's price for tx_price
           tx_price <- strategy_object$Data[[j]][[use_price]][[which(strategy_object$Data[[j]]$Date == date_sequence[i])+1]]
+          cost <-  ordersize * tx_price + tx_fees
 
-          trade_data <- tibble(Trade_ID = nrow(orderbook) + 1,
-                               Date = date_sequence[i],
-                               Ticker = names(strategy_object$Data)[j],
-                               Trade_Price = tx_price,
-                               Size = ordersize,
-                               Cost = ordersize * tx_price + tx_fees)
+          #Determine whether cash is sufficient for trade
+          if(ledger$Cash[nrow(ledger)] >= cost){
 
-          orderbook <- orderbook %>% rbind(trade_data)
+            portfolio_cash <- portfolio_cash - cost
 
+            trade_data <- tibble(Trade_ID = nrow(consolidated_orderbook) + 1,
+                                 Date = date_sequence[i],
+                                 Ticker = names(strategy_object$Data)[j],
+                                 Trade_Price = tx_price,
+                                 Size = ordersize,
+                                 Cost = cost,
+                                 Status = "Filled")
+
+            #Update Ticker Position Table
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Position <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1,]$Position + ordersize
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Weight <- cost/ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Acct_Val
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Cost <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1,]$Cost + cost
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Value <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Position * strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),][[use_price]]
+
+          }else{ #Cash is insufficient to place the trade
+
+            trade_data <- tibble(Trade_ID = nrow(consolidated_orderbook) + 1,
+                                 Date = date_sequence[i],
+                                 Ticker = names(strategy_object$Data)[j],
+                                 Trade_Price = tx_price,
+                                 Size = ordersize,
+                                 Cost = cost,
+                                 Status = "Cancelled -- Cash Insufficient")
+
+            if(which(strategy_object$Positions[[j]]$Date == date_sequence[i]) > 1){ #Begin pulling forward data at the second bar
+              strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Position <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1,]$Position
+              strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Cost <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1,]$Cost
+              strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Value <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Position * strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),][[use_price]]
+              strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Weight <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Value/ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Acct_Val
+
+            }
+
+
+          }
+
+          #Add transaction row to the consolidated orderbook
+          consolidated_orderbook <- consolidated_orderbook %>% rbind(trade_data)
+
+        }else{ #If no trade is signalled above, simply update positions table
+          if(which(strategy_object$Positions[[j]]$Date == date_sequence[i]) > 1){ #Begin pulling forward data at the second bar
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Position <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1,]$Position
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Cost <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1,]$Cost
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Value <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Position * strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),][[use_price]]
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Weight <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Value/ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Acct_Val
+
+          }
         }
+
+        #Tally Positions
+
+        ledger_cost <- ledger_cost + strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Cost
+        ledger_value <- ledger_value + strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Value
+
+      }else if(nrow(strategy_object$Data[[j]] %>% filter(Date == date_sequence[i])) == 0){ #If day doesn't exist in dataset (i.e. weekends), carry over ledger cost and ledger value from previous bar
+
+        ledger_cost <- ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Cost
+        ledger_value <-  ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Equities
+
 
       }
 
     }
+
+    #Add position tallies as ledger entry
+    ledger_entry <- tibble(Date = date_sequence[i], Description = "", Cash = portfolio_cash, Cost = ledger_cost, Equities = ledger_value, Acct_Val = ledger_value + portfolio_cash)
+    ledger <- ledger %>% rbind(ledger_entry)
+
+    setTxtProgressBar(pb, value = i/length(date_sequence))
+
   }
 
-  strategy_object$orderbook <- orderbook
+  strategy_object$orderbook <- consolidated_orderbook
+  strategy_object$ledger <- ledger
 
   return(strategy_object)
 
