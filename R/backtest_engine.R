@@ -83,13 +83,14 @@ backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLO
     #loop over all securities in strategy data
     for(j in seq_along(strategy_object$Data)){
 
-      #if the date exists for day i...
+      #if a bar exists for day i...
       if(nrow(strategy_object$Data[[j]] %>% filter(Date == date_sequence[i])) > 0){
+
         #and if a trade is signalled
         if(strategy_object$Data[[j]][[signals]][[which(strategy_object$Data[[j]]$Date == date_sequence[i])]] != 0){
 
           #Use next bar's price for tx_price
-          tx_price <- strategy_object$Data[[j]][[use_price]][[which(strategy_object$Data[[j]]$Date == date_sequence[i])+1]]
+          tx_price <- strategy_object$Data[[j]][[use_price]][[which(strategy_object$Data[[j]]$Date == date_sequence[i]) + 1]]
           cost <-  ordersize * tx_price + tx_fees
 
           #Determine whether cash is sufficient for trade
@@ -106,10 +107,10 @@ backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLO
                                  Status = "Filled")
 
             #Update Ticker Position Table
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Position <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1,]$Position + ordersize
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Weight <- cost/ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Acct_Val
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Cost <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1,]$Cost + cost
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Value <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Position * strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),][[use_price]]
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Position + ordersize
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Weight <- cost/ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Acct_Val
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Cost <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Cost + cost
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Value <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position * strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),][[use_price]]
 
           }else{ #Cash is insufficient to place the trade
 
@@ -122,10 +123,10 @@ backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLO
                                  Status = "Cancelled -- Cash Insufficient")
 
             if(which(strategy_object$Positions[[j]]$Date == date_sequence[i]) > 1){ #Begin pulling forward data at the second bar
-              strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Position <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1,]$Position
-              strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Cost <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1,]$Cost
-              strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Value <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Position * strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),][[use_price]]
-              strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Weight <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Value/ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Acct_Val
+              strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Position
+              strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Cost <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Cost
+              strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Value <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position * strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),][[use_price]]
+              strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Weight <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Value/ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Acct_Val
 
             }
 
@@ -137,10 +138,10 @@ backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLO
 
         }else{ #If no trade is signalled above, simply update positions table
           if(which(strategy_object$Positions[[j]]$Date == date_sequence[i]) > 1){ #Begin pulling forward data at the second bar
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Position <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1,]$Position
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Cost <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1,]$Cost
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Value <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Position * strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),][[use_price]]
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Weight <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Value/ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Acct_Val
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Position
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Cost <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Cost
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Value <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position * strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),][[use_price]]
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Weight <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Value/ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Acct_Val
 
           }
         }
@@ -161,13 +162,19 @@ backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLO
     }
 
     #Add position tallies as ledger entry
-    ledger_entry <- tibble(Date = date_sequence[i], Description = "", Cash = portfolio_cash, Cost = ledger_cost, Equities = ledger_value, Acct_Val = ledger_value + portfolio_cash)
+    ledger_entry <- tibble(Date = date_sequence[i], Description = "",
+                           Cash = portfolio_cash,
+                           Cost = ledger_cost, Equities = ledger_value,
+                           Acct_Val = ledger_value + portfolio_cash)
+
     ledger <- ledger %>% rbind(ledger_entry)
 
+    #Update progress bar
     setTxtProgressBar(pb, value = i/length(date_sequence))
 
   }
 
+  #Save orderbook and ledger objects to strategy_object to be returned by function
   strategy_object$orderbook <- consolidated_orderbook
   strategy_object$ledger <- ledger
 
