@@ -18,25 +18,26 @@
 #' strat <- strategy("SPX")
 #'
 strategy <- function(universe){
-  if(!is.character(universe)) stop("Universe must be a character vector.")
-  if(!all(sapply(universe,exists))) stop("You must have data loaded for each security in universe. See documentation.")
+  if (!is.character(universe)) stop("Universe must be a character vector.")
+  if (!all(sapply(universe,exists))) stop("You must have data loaded for each security in universe. See documentation.")
 
   #Create and format named list of universe data
   strat_data <- lapply(seq_along(universe), FUN = function(ticker) get(universe[ticker]))
   strat_data <- lapply(seq_along(universe), FUN = function(ticker){
+
     #Make sure data is in a usable format
-    if(!tibble::is_tibble(strat_data[[ticker]]) & !xts::is.xts(strat_data[[ticker]])) stop("Price data must be in Tibble or xts format.")
+    if (!tibble::is_tibble(strat_data[[ticker]]) & !xts::is.xts(strat_data[[ticker]])) stop("Price data must be in Tibble or xts format.")
 
     #Convert any xts data to tibble w/ date column
-    if(xts::is.xts(strat_data[[ticker]])) return(xts_to_tibble(strat_data[[ticker]]))
+    if (xts::is.xts(strat_data[[ticker]])) return(xts_to_tibble(strat_data[[ticker]]))
 
     #Otherwise, simply get tibble
-    if(tibble::is.tibble(strat_data[[ticker]])) return(strat_data[[ticker]])
+    if (tibble::is.tibble(strat_data[[ticker]])) return(strat_data[[ticker]])
   })
 
   strat_object <- list( Universe = universe,
                         Data = set_names(strat_data, universe)
-                        )
+                  )
 
   class(strat_object) <- append("fc_strategy", class(strat_object))
   return(strat_object)
@@ -46,7 +47,7 @@ strategy <- function(universe){
 backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLOSE", tx_fees = 0, init_equity = 100000){
 
   #Sanity Check
-  if(!any(class(strategy_object) == "fc_strategy")) stop("backtesting can only be performed on a fluxcapacitor strategy object.")
+  if (!any(class(strategy_object) == "fc_strategy")) stop("backtesting can only be performed on a fluxcapacitor strategy object.")
 
   #Find first date in strategy data
   start_date <- base::as.Date(min(unlist(purrr::map(strategy_object$Data, ~ min(.$Date)))), origin="1970-01-01")
@@ -74,27 +75,27 @@ backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLO
 
 
   #loop over all dates in date_sequence - for future versions, Rcpp vs. parallel for speed increase?
-  for(i in seq_along(date_sequence)){
+  for (i in seq_along(date_sequence)){
 
     #Reset daily aggregate ledger values to zero each day
     ledger_cost <- 0
     ledger_value <- 0
 
     #loop over all securities in strategy data
-    for(j in seq_along(strategy_object$Data)){
+    for (j in seq_along(strategy_object$Data)){
 
       #if a bar exists for day i...
-      if(nrow(strategy_object$Data[[j]] %>% filter(Date == date_sequence[i])) > 0){
+      if (nrow(strategy_object$Data[[j]] %>% filter(Date == date_sequence[i])) > 0){
 
         #and if a trade is signalled
-        if(strategy_object$Data[[j]][[signals]][[which(strategy_object$Data[[j]]$Date == date_sequence[i])]] != 0){
+        if (strategy_object$Data[[j]][[signals]][[which(strategy_object$Data[[j]]$Date == date_sequence[i])]] != 0){
 
           #Use next bar's price for tx_price
           tx_price <- strategy_object$Data[[j]][[use_price]][[which(strategy_object$Data[[j]]$Date == date_sequence[i]) + 1]]
           cost <-  ordersize * tx_price + tx_fees
 
           #Determine whether cash is sufficient for trade
-          if(ledger$Cash[nrow(ledger)] >= cost){
+          if (ledger$Cash[nrow(ledger)] >= cost){
 
             portfolio_cash <- portfolio_cash - cost
 
@@ -112,7 +113,7 @@ backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLO
             strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Cost <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Cost + cost
             strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Value <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position * strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),][[use_price]]
 
-          }else{ #Cash is insufficient to place the trade
+          } else { #Cash is insufficient to place the trade
 
             trade_data <- tibble(Trade_ID = nrow(consolidated_orderbook) + 1,
                                  Date = date_sequence[i],
@@ -122,7 +123,7 @@ backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLO
                                  Cost = cost,
                                  Status = "Cancelled -- Cash Insufficient")
 
-            if(which(strategy_object$Positions[[j]]$Date == date_sequence[i]) > 1){ #Begin pulling forward data at the second bar
+            if (which(strategy_object$Positions[[j]]$Date == date_sequence[i]) > 1){ #Begin pulling forward data at the second bar
               strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Position
               strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Cost <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Cost
               strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Value <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position * strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),][[use_price]]
@@ -136,8 +137,8 @@ backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLO
           #Add transaction row to the consolidated orderbook
           consolidated_orderbook <- consolidated_orderbook %>% rbind(trade_data)
 
-        }else{ #If no trade is signalled above, simply update positions table
-          if(which(strategy_object$Positions[[j]]$Date == date_sequence[i]) > 1){ #Begin pulling forward data at the second bar
+        } else { #If no trade is signalled above, simply update positions table
+          if (which(strategy_object$Positions[[j]]$Date == date_sequence[i]) > 1){ #Begin pulling forward data at the second bar
             strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Position
             strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Cost <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Cost
             strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Value <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position * strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),][[use_price]]
@@ -151,7 +152,8 @@ backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLO
         ledger_cost <- ledger_cost + strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Cost
         ledger_value <- ledger_value + strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Value
 
-      }else if(nrow(strategy_object$Data[[j]] %>% filter(Date == date_sequence[i])) == 0){ #If day doesn't exist in dataset (i.e. weekends), carry over ledger cost and ledger value from previous bar
+      } else if (nrow(strategy_object$Data[[j]] %>% filter(Date == date_sequence[i])) == 0){
+        #If day doesn't exist in dataset (i.e. weekends), carry over ledger cost and ledger value from previous bar
 
         ledger_cost <- ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Cost
         ledger_value <-  ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Equities

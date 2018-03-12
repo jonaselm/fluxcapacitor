@@ -16,8 +16,9 @@
 #'
 #' @examples
 add_indicator <- function(strategy_object, indicator_name, generator, generator_args){
+
   #Sanity Check
-  if(!any(class(strategy_object) == "fc_strategy")) stop("add_indicator can only be applied to a strategy object.")
+  if (!any(class(strategy_object) == "fc_strategy")) stop("add_indicator can only be applied to a strategy object.")
 
   indicator <- paste(generator, "(", paste(as.character(generator_args), collapse = ", "), ")", sep = "")
   strategy_object$Data <- lapply(strategy_object$Data, function(security){
@@ -38,17 +39,17 @@ add_indicator <- function(strategy_object, indicator_name, generator, generator_
 #' @param strategy_object a \code{\link{strategy}} object
 #' @param signal_name the desired column name of the signal, used to build rules
 #' @param signal a logical argument based on the indicator columns of the security object
-#' @param direction the direction of the market bet, long or short
+#' @param direction the direction of the market bet, buy or sell
 #' @param crossover defines whether signal should be a crossover signal. If TRUE, the signal will only occur on first bar of each run of signal condition being met.
 #'
 #' @return a strategy object with signal applied to all securities
 #' @export
 #'
 #' @examples
-add_signal <- function(strategy_object, signal_name, signal, direction = "long", crossover = TRUE){
+add_signal <- function(strategy_object, signal_name, signal, direction = "buy", crossover = TRUE){
 
   #Sanity Check
-  if(!any(class(strategy_object) == "fc_strategy")) stop("add_signal can only be applied to a strategy object.")
+  if (!any(class(strategy_object) == "fc_strategy")) stop("add_signal can only be applied to a strategy object.")
 
   #Add indicator to each security dataset in the strategy universe
 
@@ -58,9 +59,9 @@ add_signal <- function(strategy_object, signal_name, signal, direction = "long",
 
     sig_result <- ifelse(sig_result == 0 | is.na(sig_result),0, 1) #Convert to 1s and 0s. NAs are zeroed (no signal)
 
-    if(direction == "short") sig_result <- -sig_result #if short, use negative position
+    if (direction == "sell") sig_result <- -sig_result #if short, use negative position
 
-    if(crossover == TRUE){
+    if (crossover == TRUE){
 
       sig_result <- ifelse(sig_result != 0 & dplyr::lag(sig_result, n = 1L) != sig_result, sig_result, 0)
     }
