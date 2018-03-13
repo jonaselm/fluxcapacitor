@@ -1,4 +1,4 @@
-#' Optimize a Strategy Parameter
+#' Optimize a strategy parameter
 #'
 #' This function can be used to find the optimal value of a range of values for a strategy parameter.
 #'
