@@ -10,7 +10,7 @@
 #'
 #' @param universe a character vector of the securities to be included in the strategy.
 #'
-#' @return
+#' @return a strategy object
 #' @export
 #'
 #' @examples
@@ -51,7 +51,7 @@ strategy <- function(universe) {
 #' @param strategy_object  a \code{\link{strategy}} object
 #' @param signals a list of signal columns
 #'
-#' @return
+#' @return a strategy object
 #' @export
 #'
 #' @examples
@@ -72,6 +72,21 @@ compile_strategy <- function(strategy_object, signals) {
 
 }
 
+#' Run a backtest on a strategy object
+#'
+#' This function performs a backtest on a compiled strategy object, and returns the same strategy object with
+#' trade data included.
+#'
+#' @param strategy_object strategy_object  a \code{\link{strategy}} object
+#' @param ordersize the number of shares that will be traded per transaction
+#' @param use_price the price column to prefer for transactions
+#' @param tx_fees transaction fees
+#' @param init_equity starting cash value
+#'
+#' @return a strategy object
+#' @export
+#'
+#' @examples
 backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_fees = 0, init_equity = 100000) {
 
   #Sanity Check
@@ -238,6 +253,17 @@ backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_f
 
     #Update progress bar
     setTxtProgressBar(pb, value = i/length(date_sequence))
+
+  }
+
+  #Check for existing tests in strategy object
+  if (length(strategy_object$Tests) > 0) {
+
+    strategy_object$Tests <- strategy_object$Tests + 1
+
+  } else {
+
+    strategy_object$Tests <- 1
 
   }
 
