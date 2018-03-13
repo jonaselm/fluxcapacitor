@@ -17,7 +17,7 @@
 #' data(SPX)
 #' strat <- strategy("SPX")
 #'
-strategy <- function(universe){
+strategy <- function(universe) {
   if (!is.character(universe)) stop("Universe must be a character vector.")
   if (!all(sapply(universe,exists))) stop("You must have data loaded for each security in universe. See documentation.")
 
@@ -44,7 +44,35 @@ strategy <- function(universe){
 
 }
 
-backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLOSE", tx_fees = 0, init_equity = 100000){
+#' Compile a strategy for backtesting
+#'
+#' Determines buy and sell trades based on a strategy's signals.
+#'
+#' @param strategy_object  a \code{\link{strategy}} object
+#' @param signals a list of signal columns
+#'
+#' @return
+#' @export
+#'
+#' @examples
+compile_strategy <- function(strategy_object, signals) {
+
+  #Sanity Check
+  if (!any(class(strategy_object) == "fc_strategy")) stop("backtesting can only be performed on a fluxcapacitor strategy object.")
+
+
+    strategy_object$Data <- lapply(strategy_object$Data, function(security){
+
+      Trades <- security %>% select(signals) %>% transmute(Trade = rowSums(.))
+      security <- security %>% cbind(Trades)
+
+    })
+
+  return(strategy_object)
+
+}
+
+backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_fees = 0, init_equity = 100000) {
 
   #Sanity Check
   if (!any(class(strategy_object) == "fc_strategy")) stop("backtesting can only be performed on a fluxcapacitor strategy object.")
@@ -54,7 +82,9 @@ backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLO
 
   #End date in strategy data
   end_date <- base::as.Date(max(unlist(purrr::map(strategy_object$Data, ~ max(.$Date)))), origin="1970-01-01")
-  date_sequence <- seq.Date(start_date, end_date, 1)
+  date_sequence <- seq.Date(start_date, end_date - 1, 1) #End on day t-1 to avoid subscript oob when buying on day t
+
+  print("Running Backtest:")
 
   #Create Progress Bar
   pb <- txtProgressBar(style = 3)
@@ -73,7 +103,6 @@ backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLO
   portfolio_cash <- init_equity
   Acct_Val <- init_equity
 
-
   #loop over all dates in date_sequence - for future versions, Rcpp vs. parallel for speed increase?
   for (i in seq_along(date_sequence)){
 
@@ -87,8 +116,8 @@ backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLO
       #if a bar exists for day i...
       if (nrow(strategy_object$Data[[j]] %>% filter(Date == date_sequence[i])) > 0){
 
-        #and if a trade is signalled
-        if (strategy_object$Data[[j]][[signals]][[which(strategy_object$Data[[j]]$Date == date_sequence[i])]] != 0){
+        #and if a buy is signalled
+        if (strategy_object$Data[[j]]$Trade[[which(strategy_object$Data[[j]]$Date == date_sequence[i])]] > 0){
 
           #Use next bar's price for tx_price
           tx_price <- strategy_object$Data[[j]][[use_price]][[which(strategy_object$Data[[j]]$Date == date_sequence[i]) + 1]]
@@ -105,7 +134,7 @@ backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLO
                                  Trade_Price = tx_price,
                                  Size = ordersize,
                                  Cost = cost,
-                                 Status = "Filled")
+                                 Status = "Filled - Buy")
 
             #Update Ticker Position Table
             strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Position + ordersize
@@ -137,6 +166,37 @@ backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLO
           #Add transaction row to the consolidated orderbook
           consolidated_orderbook <- consolidated_orderbook %>% rbind(trade_data)
 
+        } else if (strategy_object$Data[[j]]$Trade[[which(strategy_object$Data[[j]]$Date == date_sequence[i])]] < 0) {
+          # if a sell is signalled
+
+          #Use next bar's price for tx_price
+          tx_price <- strategy_object$Data[[j]][[use_price]][[which(strategy_object$Data[[j]]$Date == date_sequence[i]) + 1]]
+          proceeds <-  ordersize * tx_price - tx_fees
+
+          #Determine whether position exists to sell
+          if (strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Position >= ordersize){
+
+            portfolio_cash <- portfolio_cash + proceeds
+
+            trade_data <- tibble(Trade_ID = nrow(consolidated_orderbook) + 1,
+                                 Date = date_sequence[i],
+                                 Ticker = names(strategy_object$Data)[j],
+                                 Trade_Price = tx_price,
+                                 Size = -ordersize,
+                                 Cost = -proceeds,
+                                 Status = "Filled - Sell")
+
+            #Add transaction row to the consolidated orderbook
+            consolidated_orderbook <- consolidated_orderbook %>% rbind(trade_data)
+
+            #Update Ticker Position Table
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Position - ordersize
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Weight <- cost/ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Acct_Val
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Cost <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Cost - proceeds
+            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Value <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position * strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),][[use_price]]
+
+          }
+
         } else { #If no trade is signalled above, simply update positions table
           if (which(strategy_object$Positions[[j]]$Date == date_sequence[i]) > 1){ #Begin pulling forward data at the second bar
             strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Position
@@ -149,15 +209,20 @@ backtest <- function(strategy_object, signals, ordersize = 100, use_price = "CLO
 
         #Tally Positions
 
-        ledger_cost <- ledger_cost + strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Cost
-        ledger_value <- ledger_value + strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Value
+        ledger_cost <- ledger_cost +
+          if_filled(strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Cost)
+
+        ledger_value <- ledger_value +
+          if_filled(strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Value)
 
       } else if (nrow(strategy_object$Data[[j]] %>% filter(Date == date_sequence[i])) == 0){
         #If day doesn't exist in dataset (i.e. weekends), carry over ledger cost and ledger value from previous bar
 
-        ledger_cost <- ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Cost
-        ledger_value <-  ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Equities
+        ledger_cost <- ledger_cost +
+          if_filled(strategy_object$Positions[[j]][nearest_date(strategy_object$Positions[[j]], date_sequence[i]), ]$Cost)
 
+        ledger_value <- ledger_value +
+          if_filled(strategy_object$Positions[[j]][nearest_date(strategy_object$Positions[[j]], date_sequence[i]), ]$Value)
 
       }
 
