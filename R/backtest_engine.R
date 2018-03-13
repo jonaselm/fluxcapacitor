@@ -27,6 +27,7 @@ strategy <- function(universe) {
 
     #Make sure data is in a usable format
     if (!tibble::is_tibble(strat_data[[ticker]]) & !xts::is.xts(strat_data[[ticker]])) stop("Price data must be in Tibble or xts format.")
+    if (!("Date" %in% colnames(strat_data[[ticker]]))) stop(paste("No 'Date' column found in", ticker, "security.", sep = " "))
 
     #Convert any xts data to tibble w/ date column
     if (xts::is.xts(strat_data[[ticker]])) return(xts_to_tibble(strat_data[[ticker]]))
