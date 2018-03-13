@@ -1,6 +1,3 @@
-# This file includes the main backtest engine code for fluxcapacitor.
-#
-#
 
 #' Add an indicator to your strategy
 #'
