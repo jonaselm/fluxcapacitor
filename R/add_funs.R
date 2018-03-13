@@ -67,7 +67,7 @@ add_signal <- function(strategy_object, signal_name, signal, direction = "buy", 
     }
 
     #Parse the logical argument in the signal string, and put 1/-1 in the signal_name column depending on direction argument
-    security[signal_name] <- sig_result
+    security[signal_name] <- as.numeric(sig_result)
 
     security
 
@@ -76,3 +76,5 @@ add_signal <- function(strategy_object, signal_name, signal, direction = "buy", 
   return(strategy_object)
 
 }
+
+
