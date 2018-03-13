@@ -77,17 +77,22 @@ compile_strategy <- function(strategy_object, signals) {
 #' This function performs a backtest on a compiled strategy object, and returns the same strategy object with
 #' trade data included.
 #'
+#' Backtesting tracks the number of tests done on data to quantify the risks of overfitting due to multiple testing. If a
+#' strategy parameter has been optimized using the \code{\link{optimize}} function prior to backtesting the final strategy,
+#' tests should be set to the total number of values in the optimize_range parameter used with that function during that step.
+#'
 #' @param strategy_object strategy_object  a \code{\link{strategy}} object
 #' @param ordersize the number of shares that will be traded per transaction
 #' @param use_price the price column to prefer for transactions
 #' @param tx_fees transaction fees
 #' @param init_equity starting cash value
+#' @param prior_tests the number of tests done on the data before backtesting (usually zero.)
 #'
 #' @return a strategy object
 #' @export
 #'
 #' @examples
-backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_fees = 0, init_equity = 100000) {
+backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_fees = 0, init_equity = 100000, prior_tests = 0) {
 
   #Sanity Check
   if (!any(class(strategy_object) == "fc_strategy")) stop("backtesting can only be performed on a fluxcapacitor strategy object.")
@@ -259,11 +264,11 @@ backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_f
   #Check for existing tests in strategy object
   if (length(strategy_object$Tests) > 0) {
 
-    strategy_object$Tests <- strategy_object$Tests + 1
+    strategy_object$Tests <- strategy_object$Tests + 1 + prior_tests
 
   } else {
 
-    strategy_object$Tests <- 1
+    strategy_object$Tests <- 1 + prior_tests
 
   }
 
