@@ -271,6 +271,8 @@ backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_f
   strategy_object$orderbook <- consolidated_orderbook
   strategy_object$ledger <- ledger
 
+  writeLines("\n")
+
   return(strategy_object)
 
 }
