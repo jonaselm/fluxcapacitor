@@ -27,7 +27,7 @@ strategy <- function(universe) {
 
     #Make sure data is in a usable format
     if (!tibble::is_tibble(strat_data[[ticker]]) & !xts::is.xts(strat_data[[ticker]])) stop("Price data must be in Tibble or xts format.")
-    if (!("Date" %in% colnames(strat_data[[ticker]]))) stop(paste("No 'Date' column found in", ticker, "security.", sep = " "))
+    if (!xts::is.xts(strat_data[[ticker]]) & !("Date" %in% colnames(strat_data[[ticker]]))) stop(paste("No 'Date' column found in", ticker, "security.", sep = " "))
 
     #Convert any xts data to tibble w/ date column
     if (xts::is.xts(strat_data[[ticker]])) return(xts_to_tibble(strat_data[[ticker]]))
@@ -124,7 +124,7 @@ backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_f
   portfolio_cash <- init_equity
   Acct_Val <- init_equity
 
-  #loop over all dates in date_sequence - for future versions, Rcpp vs. parallel for speed increase?
+  #loop over all dates in date_sequence - for future versions, Rcpp for speed increase?
   for (i in seq_along(date_sequence)){
 
     #Reset daily aggregate ledger values to zero each day
