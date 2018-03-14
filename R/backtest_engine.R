@@ -114,7 +114,7 @@ backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_f
 
   bt <- strategy_object$Data %>% dplyr::group_by(Ticker) %>%
     dplyr::mutate(Cost = Trade * ordersize * dplyr::lead(eval(parse(text = use_price)))) %>%
-    dplyr::ungroup %>%
+    dplyr::ungroup() %>%
     dplyr::mutate(Cost = ifelse(is.na(Cost), 0, Cost), Cash = cash, Filled = NA, Tx = 0)
 
 
