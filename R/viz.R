@@ -29,7 +29,7 @@ chart_equity_curve <- function(strategy_object){
 #' @examples
 chart_positions <- function(strategy_object, ticker, use_price = "CLOSE"){
 
-  security <- strategy_object$Positions[[ticker]] %>%
+  security <- strategy_object$Data %>% filter(Ticker == ticker) %>%
     select(Date, use_price, Position) %>% reshape2::melt(id.vars = "Date")
 
   security %>% ggplot2::ggplot() + geom_line(aes(x = Date, y = value)) +
@@ -51,13 +51,14 @@ chart_positions <- function(strategy_object, ticker, use_price = "CLOSE"){
 #' @examples
 chart_signals <- function(strategy_object, ticker, use_price = "CLOSE"){
 
-  security <- strategy_object$Data[[ticker]] %>%
+  security <- strategy_object$Data %>% filter(Ticker == ticker) %>%
     select(Date, use_price, Trade) %>% mutate(Signals = ifelse(Trade == 1, "B", Trade)) %>%
     mutate(Signals = ifelse(Signals == -1, "S", Signals)) %>% mutate(Signals = ifelse(Signals == 0, NA, Signals))
 
-    security %>% ggplot2::ggplot(aes(x = Date, y = eval(parse(text = use_price)),label = Signals)) + geom_line() +
-      geom_text(aes(colour = Signals), nudge_y = -3) +
+  security %>% ggplot2::ggplot(aes(x = Date, y = eval(parse(text = use_price)),label = Signals)) + geom_line() +
+      geom_text(aes(colour = Signals), nudge_y = -3, na.rm=TRUE) +
       labs(x = "Date", y = use_price, title = paste("Signals for", ticker, sep = " ")) +
       theme_bw() + scale_colour_manual(values=c("#007F06", "#CC0900")) + guides(colour = "none")
+
 
 }

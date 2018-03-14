@@ -18,11 +18,10 @@ add_indicator <- function(strategy_object, indicator_name, generator, generator_
   if (!any(class(strategy_object) == "fc_strategy")) stop("add_indicator can only be applied to a strategy object.")
 
   indicator <- paste(generator, "(", paste(as.character(generator_args), collapse = ", "), ")", sep = "")
-  strategy_object$Data <- lapply(strategy_object$Data, function(security){
 
-    security %>% dplyr::mutate(!!indicator_name := eval(parse(text = indicator)))
-
-  })
+  strategy_object$Data <- strategy_object$Data %>% group_by(Ticker) %>%
+    dplyr::mutate(!!indicator_name := eval(parse(text = indicator))) %>%
+    ungroup()
 
   return(strategy_object)
 
@@ -48,27 +47,21 @@ add_signal <- function(strategy_object, signal_name, signal, direction = "buy", 
   #Sanity Check
   if (!any(class(strategy_object) == "fc_strategy")) stop("add_signal can only be applied to a strategy object.")
 
-  #Add indicator to each security dataset in the strategy universe
+    strategy_object$Data <- strategy_object$Data %>%
+    mutate(sig_result = eval(parse(text = signal))) %>%
+    mutate(sig_result = ifelse(sig_result == 0 | is.na(sig_result),0, 1))
 
-  strategy_object$Data <- lapply(strategy_object$Data, function(security){
+    if (direction == "sell") strategy_object$Data <- strategy_object$Data %>% mutate(sig_result = -sig_result) #if short, use negative position
 
-    sig_result <- security %>% dplyr::transmute(!!signal_name := eval(parse(text = signal)))
+    if (crossover == TRUE) {
 
-    sig_result <- ifelse(sig_result == 0 | is.na(sig_result),0, 1) #Convert to 1s and 0s. NAs are zeroed (no signal)
+      strategy_object$Data <- strategy_object$Data %>% group_by(Ticker) %>%
+        mutate(sig_result = ifelse(sig_result != 0 & sig_result != dplyr::lag(sig_result, n = 1L), sig_result, 0)) %>%
+        ungroup()
 
-    if (direction == "sell") sig_result <- -sig_result #if short, use negative position
-
-    if (crossover == TRUE){
-
-      sig_result <- ifelse(sig_result != 0 & dplyr::lag(sig_result, n = 1L) != sig_result, sig_result, 0)
     }
 
-    #Parse the logical argument in the signal string, and put 1/-1 in the signal_name column depending on direction argument
-    security[signal_name] <- as.numeric(sig_result)
-
-    security
-
-  })
+    strategy_object$Data <- strategy_object$Data %>% rename(!!signal_name := sig_result)
 
   return(strategy_object)
 

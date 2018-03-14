@@ -17,7 +17,7 @@
 #' @export
 #'
 #' @examples
-optimize <- function(strategy_object, generator, generator_args, optimize_range, signal){
+optimize_strategy <- function(strategy_object, generator, generator_args, optimize_range, signal){
 
   generator_args_sequence <- lapply(optimize_range, FUN = function(x,generator_args){
                                                           x <- as.character(x)
