@@ -19,7 +19,7 @@
 #'
 strategy <- function(universe) {
   if (!is.character(universe)) stop("Universe must be a character vector.")
-  if (!all(sapply(universe,exists))) stop("You must have data loaded for each security in universe. See documentation.")
+  if (!all(sapply(universe, base::exists))) stop("You must have data loaded for each security in universe. See documentation.")
 
   #Create and format named list of universe data
   strat_data <- lapply(universe, FUN = function(x){
@@ -36,7 +36,7 @@ strategy <- function(universe) {
     if (xts::is.xts(stock)) {
 
       stock_tibble <- xts_to_tibble(stock)
-      stock_tibble <- stock_tibble %>% mutate(Ticker = x)
+      stock_tibble <- stock_tibble %>% dplyr::mutate(Ticker = x)
 
       return(stock_tibble)
 
@@ -48,14 +48,14 @@ strategy <- function(universe) {
   })
 
   # Merge data into a single tibble
-  strat_data <- do.call(rbind, strat_data)
+  strat_data <- do.call(base::rbind, strat_data)
   strat_data <- strat_data %>% arrange(Date)
 
   strat_object <- list( Universe = universe,
                         Data = strat_data
                   )
 
-  class(strat_object) <- append("fc_strategy", class(strat_object))
+  class(strat_object) <- base::append("fc_strategy", class(strat_object))
   return(strat_object)
 
 }
@@ -77,8 +77,8 @@ compile_strategy <- function(strategy_object, signals) {
   if (!any(class(strategy_object) == "fc_strategy")) stop("backtesting can only be performed on a fluxcapacitor strategy object.")
 
 
-  trades <- strategy_object$Data %>% select(signals) %>% transmute(Trade = rowSums(.))
-  strategy_object$Data <- strategy_object$Data %>% cbind(trades)
+  trades <- strategy_object$Data %>% dplyr::select(signals) %>% dplyr::transmute(Trade = rowSums(.))
+  strategy_object$Data <- strategy_object$Data %>% base::cbind(trades)
 
 
   return(strategy_object)
@@ -112,10 +112,10 @@ backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_f
 
   cash <- c(init_equity, rep(NA, nrow(strategy_object$Data) -1))
 
-  bt <- strategy_object$Data %>% group_by(Ticker) %>%
-    mutate(Cost = Trade * ordersize * dplyr::lead(eval(parse(text = use_price)))) %>%
-    ungroup %>%
-    mutate(Cost = ifelse(is.na(Cost), 0, Cost), Cash = cash, Filled = NA, Tx = 0)
+  bt <- strategy_object$Data %>% dplyr::group_by(Ticker) %>%
+    dplyr::mutate(Cost = Trade * ordersize * dplyr::lead(eval(parse(text = use_price)))) %>%
+    dplyr::ungroup %>%
+    dplyr::mutate(Cost = ifelse(is.na(Cost), 0, Cost), Cash = cash, Filled = NA, Tx = 0)
 
 
 
@@ -178,12 +178,13 @@ backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_f
   }
 
   # Calculate values and remove last date (because trades cannot be evaluated without lag = 1)
-  strategy_object$Data <- bt %>% group_by(Ticker) %>% mutate(Position = cumsum(Tx)) %>% ungroup() %>%
-    mutate(Val = Position * eval(parse(text = use_price))) %>% filter(Date != max(Date))
+  strategy_object$Data <- bt %>% dplyr::group_by(Ticker) %>% dplyr::mutate(Position = cumsum(Tx)) %>%
+    dplyr::ungroup() %>%
+    dplyr::mutate(Val = Position * eval(parse(text = use_price))) %>% dplyr::filter(Date != max(Date))
 
   # Save ledger
-  strategy_object$ledger <- strategy_object$Data %>% group_by(Date) %>%
-    summarise(Equity = sum(Val), Cash = last(Cash), Acct_Val = Cash + Equity)
+  strategy_object$ledger <- strategy_object$Data %>% dplyr::group_by(Date) %>%
+    dplyr::summarise(Equity = sum(Val), Cash = last(Cash), Acct_Val = Cash + Equity)
 
   return(strategy_object)
 

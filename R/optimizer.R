@@ -24,7 +24,7 @@ optimize_strategy <- function(strategy_object, generator, generator_args, optimi
                                                           str_replace_all(generator_args, "\\?", x)
                                                           }, generator_args)
 
-  signal <- str_replace_all(signal, "\\?", "optimized_indicator")
+  signal <- stringr::str_replace_all(signal, "\\?", "optimized_indicator")
 
   opt <- lapply(generator_args_sequence,
                 FUN = function(x, strategy_object, generator, signal){
