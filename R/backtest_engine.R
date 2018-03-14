@@ -22,22 +22,37 @@ strategy <- function(universe) {
   if (!all(sapply(universe,exists))) stop("You must have data loaded for each security in universe. See documentation.")
 
   #Create and format named list of universe data
-  strat_data <- lapply(seq_along(universe), FUN = function(ticker) get(universe[ticker]))
-  strat_data <- lapply(seq_along(universe), FUN = function(ticker){
+  strat_data <- lapply(universe, FUN = function(x){
+
+    stock <- get(noquote(x))
 
     #Make sure data is in a usable format
-    if (!tibble::is_tibble(strat_data[[ticker]]) & !xts::is.xts(strat_data[[ticker]])) stop("Price data must be in Tibble or xts format.")
-    if (!xts::is.xts(strat_data[[ticker]]) & !("Date" %in% colnames(strat_data[[ticker]]))) stop(paste("No 'Date' column found in", ticker, "security.", sep = " "))
+    if (!tibble::is_tibble(stock) & !xts::is.xts(stock)) stop("Price data must be in Tibble or xts format.")
+    if (!xts::is.xts(stock) & !("Date" %in% colnames(stock))) stop(paste("No 'Date' column found in", ticker, "security.", sep = " "))
+    if (!xts::is.xts(stock) & !("Ticker" %in% colnames(stock))) stop(paste("No 'Ticker' column found in", ticker, "security.", sep = " "))
+
 
     #Convert any xts data to tibble w/ date column
-    if (xts::is.xts(strat_data[[ticker]])) return(xts_to_tibble(strat_data[[ticker]]))
+    if (xts::is.xts(stock)) {
+
+      stock_tibble <- xts_to_tibble(stock)
+      stock_tibble <- stock_tibble %>% mutate(Ticker = x)
+
+      return(stock_tibble)
+
+    }
 
     #Otherwise, simply get tibble
-    if (tibble::is.tibble(strat_data[[ticker]])) return(strat_data[[ticker]])
+    if (tibble::is.tibble(stock)) return(stock)
+
   })
 
+  # Merge data into a single tibble
+  strat_data <- do.call(rbind, strat_data)
+  strat_data <- strat_data %>% arrange(Date)
+
   strat_object <- list( Universe = universe,
-                        Data = set_names(strat_data, universe)
+                        Data = strat_data
                   )
 
   class(strat_object) <- append("fc_strategy", class(strat_object))
@@ -62,12 +77,9 @@ compile_strategy <- function(strategy_object, signals) {
   if (!any(class(strategy_object) == "fc_strategy")) stop("backtesting can only be performed on a fluxcapacitor strategy object.")
 
 
-    strategy_object$Data <- lapply(strategy_object$Data, function(security){
+  trades <- strategy_object$Data %>% select(signals) %>% transmute(Trade = rowSums(.))
+  strategy_object$Data <- strategy_object$Data %>% cbind(trades)
 
-      Trades <- security %>% select(signals) %>% transmute(Trade = rowSums(.))
-      security <- security %>% cbind(Trades)
-
-    })
 
   return(strategy_object)
 
@@ -98,186 +110,80 @@ backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_f
   #Sanity Check
   if (!any(class(strategy_object) == "fc_strategy")) stop("backtesting can only be performed on a fluxcapacitor strategy object.")
 
-  #Find first date in strategy data
-  start_date <- base::as.Date(min(unlist(purrr::map(strategy_object$Data, ~ min(.$Date)))), origin="1970-01-01")
+  cash <- c(init_equity, rep(NA, nrow(strategy_object$Data) -1))
 
-  #End date in strategy data
-  end_date <- base::as.Date(max(unlist(purrr::map(strategy_object$Data, ~ max(.$Date)))), origin="1970-01-01")
-  date_sequence <- seq.Date(start_date, end_date - 1, 1) #End on day t-1 to avoid subscript oob when buying on day t
-
-  print("Running Backtest:")
-
-  #Create Progress Bar
-  pb <- txtProgressBar(style = 3)
-
-  #Initialize orderbook and ledger
-  consolidated_orderbook <- tibble()
-  ledger <- tibble(Date = start_date-1, Description = "Strategy Initialized", Cash = init_equity, Cost = 0, Equities = 0, Acct_Val = init_equity)
-
-  #Initialize Date, Price, Position, Weight, Cost, and Value for each security orderbook
-  strategy_object$Positions <- lapply(strategy_object$Data, function(security){
-
-    security %>% select(Date, !!use_price) %>% mutate(Position = 0, Weight = 0, Cost = 0, Value = 0)
-
-  })
-
-  portfolio_cash <- init_equity
-  Acct_Val <- init_equity
-
-  #loop over all dates in date_sequence - for future versions, Rcpp for speed increase?
-  for (i in seq_along(date_sequence)){
-
-    #Reset daily aggregate ledger values to zero each day
-    ledger_cost <- 0
-    ledger_value <- 0
-
-    #loop over all securities in strategy data
-    for (j in seq_along(strategy_object$Data)){
-
-      #if a bar exists for day i...
-      if (nrow(strategy_object$Data[[j]] %>% filter(Date == date_sequence[i])) > 0){
-
-        #and if a buy is signalled
-        if (strategy_object$Data[[j]]$Trade[[which(strategy_object$Data[[j]]$Date == date_sequence[i])]] > 0){
-
-          #Use next bar's price for tx_price
-          tx_price <- strategy_object$Data[[j]][[use_price]][[which(strategy_object$Data[[j]]$Date == date_sequence[i]) + 1]]
-          cost <-  ordersize * tx_price + tx_fees
-
-          #Determine whether cash is sufficient for trade
-          if (ledger$Cash[nrow(ledger)] >= cost){
-
-            portfolio_cash <- portfolio_cash - cost
-
-            trade_data <- tibble(Trade_ID = nrow(consolidated_orderbook) + 1,
-                                 Date = date_sequence[i],
-                                 Ticker = names(strategy_object$Data)[j],
-                                 Trade_Price = tx_price,
-                                 Size = ordersize,
-                                 Cost = cost,
-                                 Status = "Filled - Buy")
-
-            #Update Ticker Position Table
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Position + ordersize
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Weight <- cost/ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Acct_Val
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Cost <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Cost + cost
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Value <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position * strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),][[use_price]]
-
-          } else { #Cash is insufficient to place the trade
-
-            trade_data <- tibble(Trade_ID = nrow(consolidated_orderbook) + 1,
-                                 Date = date_sequence[i],
-                                 Ticker = names(strategy_object$Data)[j],
-                                 Trade_Price = tx_price,
-                                 Size = ordersize,
-                                 Cost = cost,
-                                 Status = "Cancelled -- Cash Insufficient")
-
-            if (which(strategy_object$Positions[[j]]$Date == date_sequence[i]) > 1){ #Begin pulling forward data at the second bar
-              strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Position
-              strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Cost <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Cost
-              strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Value <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position * strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),][[use_price]]
-              strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Weight <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Value/ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Acct_Val
-
-            }
+  bt <- strategy_object$Data %>% group_by(Ticker) %>%
+    mutate(Cost = Trade * ordersize * dplyr::lead(eval(parse(text = use_price)))) %>%
+    ungroup %>%
+    mutate(Cost = ifelse(is.na(Cost), 0, Cost), Cash = cash, Filled = NA, Tx = 0)
 
 
-          }
 
-          #Add transaction row to the consolidated orderbook
-          consolidated_orderbook <- consolidated_orderbook %>% rbind(trade_data)
+  #Loop over transactions to update cash, positions, etc.
+  positions <- rep(0, length(universe))
+  names(positions) <- universe
 
-        } else if (strategy_object$Data[[j]]$Trade[[which(strategy_object$Data[[j]]$Date == date_sequence[i])]] < 0) {
-          # if a sell is signalled
+  for (i in 2:(nrow(bt)-1)){
 
-          #Use next bar's price for tx_price
-          tx_price <- strategy_object$Data[[j]][[use_price]][[which(strategy_object$Data[[j]]$Date == date_sequence[i]) + 1]]
-          proceeds <-  ordersize * tx_price - tx_fees
+    # If a buy is signalled
+    if (bt[["Trade"]][[i]] > 0){
 
-          #Determine whether position exists to sell
-          if (strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Position >= ordersize){
+      # Check for sufficient cash
 
-            portfolio_cash <- portfolio_cash + proceeds
+      if (bt[["Cash"]][[i-1]] > bt[["Cost"]][[i]]){
 
-            trade_data <- tibble(Trade_ID = nrow(consolidated_orderbook) + 1,
-                                 Date = date_sequence[i],
-                                 Ticker = names(strategy_object$Data)[j],
-                                 Trade_Price = tx_price,
-                                 Size = -ordersize,
-                                 Cost = -proceeds,
-                                 Status = "Filled - Sell")
+        bt[["Cash"]][[i]] <- bt[["Cash"]][[i-1]] - bt[["Cost"]][[i]]
+        positions[[bt[["Ticker"]][[i]]]] <- positions[[bt[["Ticker"]][[i]]]] + ordersize
+        bt[["Filled"]][[i]] <- TRUE
+        bt[["Tx"]][[i]] <- bt[["Trade"]][[i]] * ordersize
 
-            #Add transaction row to the consolidated orderbook
-            consolidated_orderbook <- consolidated_orderbook %>% rbind(trade_data)
+      } else {
+        # if cash is insufficient
 
-            #Update Ticker Position Table
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Position - ordersize
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Weight <- cost/ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Acct_Val
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Cost <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Cost - proceeds
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Value <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position * strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),][[use_price]]
-
-          }
-
-        } else { #If no trade is signalled above, simply update positions table
-          if (which(strategy_object$Positions[[j]]$Date == date_sequence[i]) > 1){ #Begin pulling forward data at the second bar
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Position
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Cost <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]) - 1, ]$Cost
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Value <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Position * strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]),][[use_price]]
-            strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Weight <- strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Value/ledger[which(strategy_object$Positions[[j]]$Date == date_sequence[i]),]$Acct_Val
-
-          }
-        }
-
-        #Tally Positions
-
-        ledger_cost <- ledger_cost +
-          if_filled(strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Cost)
-
-        ledger_value <- ledger_value +
-          if_filled(strategy_object$Positions[[j]][which(strategy_object$Positions[[j]]$Date == date_sequence[i]), ]$Value)
-
-      } else if (nrow(strategy_object$Data[[j]] %>% filter(Date == date_sequence[i])) == 0){
-        #If day doesn't exist in dataset (i.e. weekends), carry over ledger cost and ledger value from previous bar
-
-        ledger_cost <- ledger_cost +
-          if_filled(strategy_object$Positions[[j]][nearest_date(strategy_object$Positions[[j]], date_sequence[i]), ]$Cost)
-
-        ledger_value <- ledger_value +
-          if_filled(strategy_object$Positions[[j]][nearest_date(strategy_object$Positions[[j]], date_sequence[i]), ]$Value)
+        bt[["Cash"]][[i]] <- bt[["Cash"]][[i-1]]
+        bt[["Filled"]][[i]] <- FALSE
+        bt[["Tx"]][[i]] <- 0
 
       }
 
+
+    } else if (bt[["Trade"]][[i]] < 0) {# if a sell is signalled
+
+      # And a position exists to sell
+      if(positions[[bt[["Ticker"]][[i]]]] >= ordersize){
+
+        bt[["Cash"]][[i]] <- bt[["Cash"]][[i-1]] - bt[["Cost"]][[i]]
+        positions[[bt[["Ticker"]][[i]]]] <- positions[[bt[["Ticker"]][[i]]]] - ordersize
+        bt[["Filled"]][[i]] <- TRUE
+        bt[["Tx"]][[i]] <- bt[["Trade"]][[i]] * ordersize
+
+      } else {
+
+        #if no position to sell
+
+        bt[["Cash"]][[i]] <- bt[["Cash"]][[i-1]]
+        bt[["Filled"]][[i]] <- FALSE
+        bt[["Tx"]][[i]] <- 0
+
+
+      }
+    } else { #no trade
+
+      bt[["Cash"]][[i]] <- bt[["Cash"]][[i-1]]
+      bt[["Filled"]][[i]] <- FALSE
+      bt[["Tx"]][[i]] <- 0
+
     }
 
-    #Add position tallies as ledger entry
-    ledger_entry <- tibble(Date = date_sequence[i], Description = "",
-                           Cash = portfolio_cash,
-                           Cost = ledger_cost, Equities = ledger_value,
-                           Acct_Val = ledger_value + portfolio_cash)
-
-    ledger <- ledger %>% rbind(ledger_entry)
-
-    #Update progress bar
-    setTxtProgressBar(pb, value = i/length(date_sequence))
-
   }
 
-  #Check for existing tests in strategy object
-  if (length(strategy_object$Tests) > 0) {
+  # Calculate values and remove last date (because trades cannot be evaluated without lag = 1)
+  strategy_object$Data <- bt %>% group_by(Ticker) %>% mutate(Position = cumsum(Tx)) %>% ungroup() %>%
+    mutate(Val = Position * eval(parse(text = use_price))) %>% filter(Date != max(Date))
 
-    strategy_object$Tests <- strategy_object$Tests + 1 + prior_tests
-
-  } else {
-
-    strategy_object$Tests <- 1 + prior_tests
-
-  }
-
-  #Save orderbook and ledger objects to strategy_object to be returned by function
-  strategy_object$orderbook <- consolidated_orderbook
-  strategy_object$ledger <- ledger
-
-  writeLines("\n")
+  # Save ledger
+  strategy_object$ledger <- strategy_object$Data %>% group_by(Date) %>%
+    summarise(Equity = sum(Val), Cash = last(Cash), Acct_Val = Cash + Equity)
 
   return(strategy_object)
 
