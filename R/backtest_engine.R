@@ -17,7 +17,7 @@
 #' data(SPX)
 #' strat <- strategy("SPX")
 #'
-strategy <- function(universe) {
+init_strategy <- function(universe) {
   if (!is.character(universe)) stop("Universe must be a character vector.")
   if (!all(sapply(universe, base::exists))) stop("You must have data loaded for each security in universe. See documentation.")
 
