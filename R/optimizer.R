@@ -17,35 +17,55 @@
 #' @export
 #'
 #' @examples
-optimize_strategy <- function(strategy_object, generator, generator_args, optimize_range, signal){
+optimize_strategy <- function(strategy_object, generator, generator_args, optimize_range, signal) {
 
   generator_args_sequence <- lapply(optimize_range, FUN = function(x,generator_args){
                                                           x <- as.character(x)
-                                                          str_replace_all(generator_args, "\\?", x)
+                                                          stringr::str_replace_all(generator_args, "\\?", x)
                                                           }, generator_args)
 
   signal <- stringr::str_replace_all(signal, "\\?", "optimized_indicator")
 
-  opt <- lapply(generator_args_sequence,
-                FUN = function(x, strategy_object, generator, signal){
+  cat("Optimizing Strategy: \n")
+  pb <- txtProgressBar(min = 0, max = length(generator_args_sequence), style = 3)
 
-                  results <- strategy_object %>%
-                    add_indicator(indicator_name = "optimized_indicator",
-                                                       generator = generator,
-                                                       generator_args = x) %>%
-                    add_signal(signal_name = "optimizer",
-                               signal = signal) %>%
-                    compile_strategy(signals = "optimizer") %>%
-                    backtest()
+  opt <- rep(NA, length(generator_args_sequence))
 
-                  dplyr::last(results$ledger$Acct_Val)
+  # For loop used here to take advantage of progress bar w/ negligible speed cost
+  for (i in seq_along(generator_args_sequence)) {
 
+    setTxtProgressBar(pb, i)
 
+    results <- strategy_object %>%
+      add_indicator(indicator_name = "optimized_indicator",
+                    generator = generator,
+                    generator_args = generator_args_sequence[[i]]) %>%
+      add_signal(signal_name = "optimizer",
+                 signal = signal) %>%
+      compile_strategy(signals = "optimizer") %>%
+      backtest(progress = FALSE)
 
+    opt[i] <- dplyr::last(results$ledger$Acct_Val)
+  }
 
-  }, strategy_object, generator, signal)
+  close(pb)
 
+  strategy_object$Optimized <- list( Parameters = optimize_range,
+                                     Equity = opt,
+                                     best = optimize_range[which.max(opt)]
+  )
 
-  optimize_range[which.max(opt)]
+  # Track tests for overfitting
+  if (length(strategy_object$Tests) > 0) {
+
+    strategy_object$Tests <- strategy_object$Tests + length(generator_args_sequence)
+
+  } else {
+
+    strategy_object$Tests <- length(generator_args_sequence)
+
+  }
+
+  return(strategy_object)
 
 }

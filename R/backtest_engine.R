@@ -105,7 +105,17 @@ compile_strategy <- function(strategy_object, signals) {
 #' @export
 #'
 #' @examples
-backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_fees = 0, init_equity = 100000, prior_tests = 0) {
+backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_fees = 0, init_equity = 100000, prior_tests = 0,
+                     progress = TRUE) {
+
+
+  # Initialize Progress Bar
+  if (progress == TRUE){
+
+    cat("Backtesting Strategy: \n")
+    pb <- txtProgressBar(style = 3)
+
+  }
 
   #Sanity Check
   if (!any(class(strategy_object) == "fc_strategy")) stop("backtesting can only be performed on a fluxcapacitor strategy object.")
@@ -175,6 +185,8 @@ backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_f
 
     }
 
+    if (progress == TRUE) setTxtProgressBar(pb, i/(nrow(bt)-2))
+
   }
 
   # Calculate values and remove last date (because trades cannot be evaluated without lag = 1)
@@ -185,6 +197,20 @@ backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_f
   # Save ledger
   strategy_object$ledger <- strategy_object$Data %>% dplyr::group_by(Date) %>%
     dplyr::summarise(Equity = sum(Val), Cash = last(Cash), Acct_Val = Cash + Equity)
+
+  # Track tests for overfitting
+  if (length(strategy_object$Tests) > 0) {
+
+    strategy_object$Tests <- strategy_object$Tests + 1
+
+  } else {
+
+    strategy_object$Tests <- 1
+
+  }
+
+  # Close progress bar
+  if (progress == TRUE) close(pb)
 
   return(strategy_object)
 
