@@ -62,5 +62,27 @@ chart_signals <- function(strategy_object, ticker, use_price = "CLOSE"){
     ggplot2::labs(x = "Date", y = use_price, title = paste("Signals for", ticker, sep = " ")) +
     ggplot2::theme_bw() + ggplot2::scale_colour_manual(values=c("#007F06", "#CC0900")) + guides(colour = "none")
 
+}
+
+#' Chart the results of a strategy optimization
+#'
+#' Generates a chart of different tested parameter values versus the equity those parameters produced. Maximum
+#' equity is annotated with an orange dot.
+#'
+#' @param strategy_object a \code{\link{strategy}} object that's been produced by the optimize_strategy() function
+#'
+#' @return
+#' @export
+#'
+#' @examples
+chart_optimizer <- function(strategy_object){
+
+  opt_data <- tibble(Parameter = strategy_object$Optimized$Parameters,
+                     Equity = strategy_object$Optimized$Equity)
+
+  opt_data %>% ggplot2::ggplot(aes(x = Parameter, y = Equity)) + ggplot2::geom_line() +
+    ggplot2::geom_point(aes(x = Parameter[which.max(Equity)], y = Equity[which.max(Equity)]),
+                        size = 3, color = "orange") + ggplot2::theme_bw() +
+    ggplot2::labs(title = "Optimization Results (In-Sample)")
 
 }
