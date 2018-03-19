@@ -8,7 +8,7 @@ optimize_strategy(strategy_object, generator, generator_args, optimize_range,
   signal)
 }
 \arguments{
-\item{strategy_object}{a \code{\link{strategy}} object}
+\item{strategy_object}{a strategy object}
 
 \item{generator}{the function used to generate the indicator value being optimized}
 

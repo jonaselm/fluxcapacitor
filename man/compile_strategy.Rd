@@ -7,7 +7,7 @@
 compile_strategy(strategy_object, signals)
 }
 \arguments{
-\item{strategy_object}{a \code{\link{strategy}} object}
+\item{strategy_object}{a strategy object}
 
 \item{signals}{a list of signal columns}
 }

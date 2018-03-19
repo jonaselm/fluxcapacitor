@@ -11,8 +11,8 @@ Description: fluxcapacitor is a quantitative backtesting engine that plays nicel
 License: GPL-3
 Encoding: UTF-8
 LazyData: true
-Depends: tidyverse, rlang
-Suggests: knitr,
-    rmarkdown, tidyquant
+Depends: R (>= 2.10), tidyverse
+Imports: dplyr, magrittr, reshape2, stringr, tibble, xts, utils, timetk, ggplot2, rlang
+Suggests: tidyquant, knitr
 VignetteBuilder: knitr
 RoxygenNote: 6.0.1

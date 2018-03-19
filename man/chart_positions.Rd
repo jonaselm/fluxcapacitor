@@ -7,11 +7,14 @@
 chart_positions(strategy_object, ticker, use_price = "CLOSE")
 }
 \arguments{
-\item{strategy_object}{a \code{\link{strategy}} object}
+\item{strategy_object}{a strategy object}
 
 \item{ticker}{the ticker symbol to chart}
 
 \item{use_price}{price column to chart}
+}
+\value{
+a ggplot2 object
 }
 \description{
 Generate a price chart and position plot for a given ticker from the strategy universe.

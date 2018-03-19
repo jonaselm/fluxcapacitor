@@ -7,7 +7,10 @@
 chart_equity_curve(strategy_object)
 }
 \arguments{
-\item{strategy_object}{a \code{\link{strategy}} object}
+\item{strategy_object}{a strategy object}
+}
+\value{
+a ggplot2 object
 }
 \description{
 From a backtested strategy object, generate a plot of the equity curve

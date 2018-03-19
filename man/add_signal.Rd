@@ -8,7 +8,7 @@ add_signal(strategy_object, signal_name, signal, direction = "buy",
   crossover = TRUE)
 }
 \arguments{
-\item{strategy_object}{a \code{\link{strategy}} object}
+\item{strategy_object}{a strategy object}
 
 \item{signal_name}{the desired column name of the signal, used to build rules}
 

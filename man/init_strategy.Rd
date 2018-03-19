@@ -24,6 +24,6 @@ must have an object named AAPL that contains the stock price data for AAPL.
 }
 \examples{
 data(SPY)
-strat <- strategy("SPY")
+strat <- init_strategy("SPY")
 
 }

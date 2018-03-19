@@ -9,6 +9,7 @@
 #'
 #' @return A tibble of dates and per-period returns
 #' @export
+#' @importFrom magrittr %>%
 #'
 return_calculate <- function(strategy_object, method = "arithmetic") {
 
@@ -41,6 +42,8 @@ return_calculate <- function(strategy_object, method = "arithmetic") {
 #'
 #' @return a tibble contaning the strategy's Sharpe ratio.
 #' @export
+#' @importFrom magrittr %>%
+#'
 #'
 sharpe_ratio <- function(strategy_object, risk_free = 0, scale = 1) {
 
@@ -67,6 +70,7 @@ sharpe_ratio <- function(strategy_object, risk_free = 0, scale = 1) {
 #'
 #' @return a tibble containing the strategy's information ratio
 #' @export
+#' @importFrom magrittr %>%
 #'
 information_ratio <- function(strategy_object, benchmark_returns) {
 
@@ -92,6 +96,7 @@ information_ratio <- function(strategy_object, benchmark_returns) {
 #'
 #' @return a tibble containing per-period drawdown statistics
 #' @export
+#' @importFrom magrittr %>%
 #'
 strategy_drawdowns <- function(strategy_object) {
 

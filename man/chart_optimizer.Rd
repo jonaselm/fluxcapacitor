@@ -7,7 +7,10 @@
 chart_optimizer(strategy_object)
 }
 \arguments{
-\item{strategy_object}{a \code{\link{strategy}} object that's been produced by the optimize_strategy() function}
+\item{strategy_object}{a strategy object that's been produced by the optimize_strategy() function}
+}
+\value{
+a ggplot2 object
 }
 \description{
 Generates a chart of different tested parameter values versus the equity those parameters produced. Maximum

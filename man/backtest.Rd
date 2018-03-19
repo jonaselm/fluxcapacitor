@@ -8,7 +8,7 @@ backtest(strategy_object, ordersize = 100, use_price = "CLOSE",
   tx_fees = 0, init_equity = 1e+05, prior_tests = 0, progress = TRUE)
 }
 \arguments{
-\item{strategy_object}{strategy_object  a \code{\link{strategy}} object}
+\item{strategy_object}{strategy_object  a strategy object}
 
 \item{ordersize}{the number of shares that will be traded per transaction}
 
@@ -19,6 +19,8 @@ backtest(strategy_object, ordersize = 100, use_price = "CLOSE",
 \item{init_equity}{starting cash value}
 
 \item{prior_tests}{the number of tests done on the data before backtesting (usually zero.)}
+
+\item{progress}{TRUE/FALSE. Specifies whether a progress bar should be displayed in the console during backtest.}
 }
 \value{
 a strategy object

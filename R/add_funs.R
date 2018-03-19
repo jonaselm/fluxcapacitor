@@ -3,13 +3,15 @@
 #'
 #' Calculates an indicator, and adds it to a column in each security's timeseries data.
 #'
-#' @param strategy_object a \code{\link{strategy}} object
+#' @param strategy_object a strategy object
 #' @param indicator_name the desired column name of the indicator, used to build signals
 #' @param generator the function used to generate the indicator value
 #' @param generator_args a named list of parameters to use with the generator function
 #'
 #' @return a strategy object with indicator applied to all securities
 #' @export
+#' @importFrom magrittr %>%
+#' @importFrom rlang := !!
 #'
 add_indicator <- function(strategy_object, indicator_name, generator, generator_args){
 
@@ -31,7 +33,7 @@ add_indicator <- function(strategy_object, indicator_name, generator, generator_
 #'
 #' Determines whether a signal has occurred based on one or more columns in the strategy data, and adds it to a column in each security's timeseries data.
 #'
-#' @param strategy_object a \code{\link{strategy}} object
+#' @param strategy_object a strategy object
 #' @param signal_name the desired column name of the signal, used to build rules
 #' @param signal a logical argument based on the indicator columns of the security object
 #' @param direction the direction of the market bet, buy or sell
@@ -39,6 +41,8 @@ add_indicator <- function(strategy_object, indicator_name, generator, generator_
 #'
 #' @return a strategy object with signal applied to all securities
 #' @export
+#' @importFrom magrittr %>%
+#' @importFrom rlang := !!
 #'
 add_signal <- function(strategy_object, signal_name, signal, direction = "buy", crossover = TRUE){
 

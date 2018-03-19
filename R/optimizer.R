@@ -7,7 +7,7 @@
 #' of the test.
 #'
 #'
-#' @param strategy_object a \code{\link{strategy}} object
+#' @param strategy_object a strategy object
 #' @param generator the function used to generate the indicator value being optimized
 #' @param generator_args a named list of parameters to use with the generator function. Parameters to be optimized should be denoted with a question mark (?).
 #' @param optimize_range a range of values to optimize amongst.
@@ -15,6 +15,7 @@
 #'
 #' @return a strategy object with an Optimized entry
 #' @export
+#' @importFrom magrittr %>%
 #'
 optimize_strategy <- function(strategy_object, generator, generator_args, optimize_range, signal) {
 

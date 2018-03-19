@@ -2,9 +2,11 @@
 #'
 #' From a backtested strategy object, generate a plot of the equity curve
 #'
-#' @param strategy_object a \code{\link{strategy}} object
+#' @param strategy_object a strategy object
 #'
+#' @return a ggplot2 object
 #' @export
+#' @importFrom magrittr %>%
 #'
 chart_equity_curve <- function(strategy_object){
 
@@ -18,11 +20,13 @@ chart_equity_curve <- function(strategy_object){
 #'
 #' Generate a price chart and position plot for a given ticker from the strategy universe.
 #'
-#' @param strategy_object a \code{\link{strategy}} object
+#' @param strategy_object a strategy object
 #' @param ticker the ticker symbol to chart
 #' @param use_price price column to chart
 #'
+#' @return a ggplot2 object
 #' @export
+#' @importFrom magrittr %>%
 #'
 chart_positions <- function(strategy_object, ticker, use_price = "CLOSE"){
 
@@ -38,11 +42,13 @@ chart_positions <- function(strategy_object, ticker, use_price = "CLOSE"){
 #'
 #' Generate a price chart with overlaid buy and sell signals for a given ticker from the strategy universe.
 #'
-#' @param strategy_object a \code{\link{strategy}} object
+#' @param strategy_object a strategy object
 #' @param ticker the ticker symbol to chart
 #' @param use_price price column to chart
 #'
+#' @return a ggplot2 object
 #' @export
+#' @importFrom magrittr %>%
 #'
 chart_signals <- function(strategy_object, ticker, use_price = "CLOSE"){
 
@@ -63,9 +69,11 @@ chart_signals <- function(strategy_object, ticker, use_price = "CLOSE"){
 #' Generates a chart of different tested parameter values versus the equity those parameters produced. Maximum
 #' equity is annotated with an orange dot.
 #'
-#' @param strategy_object a \code{\link{strategy}} object that's been produced by the optimize_strategy() function
+#' @param strategy_object a strategy object that's been produced by the optimize_strategy() function
 #'
+#' @return a ggplot2 object
 #' @export
+#' @importFrom magrittr %>%
 #'
 chart_optimizer <- function(strategy_object){
 

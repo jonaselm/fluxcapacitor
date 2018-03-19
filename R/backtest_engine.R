@@ -12,10 +12,11 @@
 #'
 #' @return a strategy object
 #' @export
+#' @importFrom magrittr %>%
 #'
 #' @examples
 #' data(SPY)
-#' strat <- strategy("SPY")
+#' strat <- init_strategy("SPY")
 #'
 init_strategy <- function(universe) {
   if (!is.character(universe)) stop("Universe must be a character vector.")
@@ -64,11 +65,12 @@ init_strategy <- function(universe) {
 #'
 #' Determines buy and sell trades based on a strategy's signals.
 #'
-#' @param strategy_object  a \code{\link{strategy}} object
+#' @param strategy_object  a strategy object
 #' @param signals a list of signal columns
 #'
 #' @return a strategy object
 #' @export
+#' @importFrom magrittr %>%
 #'
 compile_strategy <- function(strategy_object, signals) {
 
@@ -93,15 +95,17 @@ compile_strategy <- function(strategy_object, signals) {
 #' strategy parameter has been optimized using the \code{\link{optimize}} function prior to backtesting the final strategy,
 #' tests should be set to the total number of values in the optimize_range parameter used with that function during that step.
 #'
-#' @param strategy_object strategy_object  a \code{\link{strategy}} object
+#' @param strategy_object strategy_object  a strategy object
 #' @param ordersize the number of shares that will be traded per transaction
 #' @param use_price the price column to prefer for transactions
 #' @param tx_fees transaction fees
 #' @param init_equity starting cash value
 #' @param prior_tests the number of tests done on the data before backtesting (usually zero.)
+#' @param progress TRUE/FALSE. Specifies whether a progress bar should be displayed in the console during backtest.
 #'
 #' @return a strategy object
 #' @export
+#' @importFrom magrittr %>%
 #'
 backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_fees = 0, init_equity = 100000, prior_tests = 0,
                      progress = TRUE) {

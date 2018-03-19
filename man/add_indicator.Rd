@@ -7,7 +7,7 @@
 add_indicator(strategy_object, indicator_name, generator, generator_args)
 }
 \arguments{
-\item{strategy_object}{a \code{\link{strategy}} object}
+\item{strategy_object}{a strategy object}
 
 \item{indicator_name}{the desired column name of the indicator, used to build signals}
 
