@@ -1,0 +1,137 @@
+---
+title: "Project Report: fluxcapacitor"
+author: "Jonas Elmerraji - <jonaselm@stanford.edu>"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+The `fluxcapacitor` package  is a quantitative backtesting engine that plays nicely within the tidyverse.
+
+The package gets its name from the _Back to the Future_ series of films -- like the flux capacitor in Doc Brown's DeLorean, this package aims to facilitate "time travel", allowing financial researchers to simulate the results of trading strategies.
+
+## Problem Description
+
+While R is used extensively in the finanical world, it is notoriously removed from the tidyverse ecosystem of packages popularized by Hadley Wickham. Because of that, financial data scientists and quants miss out on a deep bench of well-engineered, useful software. Existing R finance packages, while powerful in many cases, require the user to use workflows that are out of date with modern data science. 
+
+This has been remedied in part by the introduction of packages like `tidyquant`, which takes the excellent functionality of financial analysis packages such as `PerformanceAnalytics`, `quantmod`, and `TTR` and makes them play nicely with tidy data. But there isn't an equivalent solution for backtesting investment strategies. 
+
+`fluxcapacitor` aims to fix that by providing a backtesting engine built around tidy data and the tidyverse.
+
+The biggest challenge in implementing `fluxcapacitor` was a software engineering challenge, rather than actually implementing code.
+
+For `fluxcapacitor` to be a general enough backtesting engine to be useful, it was necessary to think in-depth about how a strategy would be approached before beginning to implement it. Ultimately, I decided to create strategy objects as "containers" for both the data used to backtest the strategy as well as the meta-data generated as part of the backtest for future analysis. 
+
+Some additional challenges came from the R language itself. The logical approach to looping through a data frame for trades proved extremely computationally expensive, in part because of the huge number of function calls that resulted from having data initially stored as a list of tibbles stored deep in the strategy object. The solution came from the tidyverse itself, where security price data could be contained within a single tibble and tidy data munging tools could be used to limit the amount of function calls made within for loops.
+
+The tidyverse also provided useful soltions to some nonstandard evaluation problems that I had initially been challenged to find solutions to. This can be seen in functions such as `add_indicator()`, where arguments can include references to the security data columns within the strategy object without needing to resort to potentially problematic ways of pulling those columns into R's namespace. Programming on the tidyverse solves this too.
+
+Where possible, `fluxcapacitor` has been written with extensibility in mind. While it is impossible to implement every conceivable trading scenario to simulate for the purposes of this project, I plan on continuing development of this package, and adding more functionality over time. 
+
+## Use Case
+
+The equivalent of a "hello world" program in quantitative investing is a simple moving average crossover strategy. We will build and evaluate such a strategy in this vignette.
+
+For our example use case, we'll look at a basic 200-day moving average crossover system applied on a universe of exchange-traded funds that represent the S&P 500 (SPY), foreign developed equity markets (EFA), U.S. 10-year government bonds (IEF), commodities (DBC), and real estate (VNQ). These asset classes come from Meb Faber's [well known paper on Quantitative Tactical Asset Allocation](http://mebfaber.com/wp-content/uploads/2016/05/SSRN-id962461.pdf).
+
+The securities data for the ETFs mentioned above are included in the `fluxcapacitor` package. For instance, data for SPY can be loaded by invoking the `data(SPY)`. Each ETF is xts formatted (a standard for financial time series data) and stored in a separate dataset to reflect how production data would be pulled into R through many popular APIs.
+
+```{r}
+require(fluxcapacitor)
+
+universe <- c("SPY", "EFA", "IEF", "DBC", "VNQ")
+
+data(list = c(universe))
+```
+
+After loading the data, we can create a strategy object, compute our indicators and add trading signals using the pipe operator from the `magrittr` package. Building a backtesting pipeline using the %>% operator provides a clear visualization of how data flows from raw input data through our backtest results.  
+
+To add indicators, we can use the `add_indicator` function, which adds a column to the data in the strategy object based on a generator function (in this case, the SMA function from the TTR package to add a 200-day simple moving average to each ETF). Note that thanks to dplyr's nonstandard evaluation and lazy evaluation in R, we are able to pass arguments to the generator function as we would if we were working with it directly.
+
+We can also add signals as part of our backtesting pipeline. 
+
+Signals take indicators and distill them into binary outcomes -- in other words, they let us know if a trading condition has been met. Here again, nonstandard evaluation makes our signal rules readable.
+
+```{r}
+report_example <- init_strategy(universe) %>% add_indicator(indicator_name = "SMA_200",
+                           generator = "TTR::SMA",
+                           generator_args = list("x = CLOSE", "n = 200")
+                           ) %>%
+             add_signal(signal_name = "my_buy_signal",
+                        signal = "CLOSE > SMA_200") %>%
+            add_signal(signal_name = "my_sell_signal",
+                       signal = "CLOSE < SMA_200",
+                       direction = "sell")
+```
+
+One of the things that makes this approach powerful is that multiple signals can be layered on top of each other, creating "meta-signals" that can be fine-tuned to provide more flexibility over what triggers a trade.
+
+In order to actually backtest the strategy, we compile our signals of interest into a final trade indicator. This is done with the `compile_strategy()` function. Then the backtest is called using the `backtest()` function. 
+
+```{r}
+report_example <- report_example %>% 
+                  compile_strategy(signals = c("my_buy_signal", "my_sell_signal")) %>%
+                  backtest()
+```
+
+Once the backtest has completed, analysis can be performed either with functions within `fluxcapacitor` or through existing analytics packages through the `tidyquant` package.
+
+For instance, a chart of our strategy's equity curve can be generated with the following line of code:
+
+```{r}
+chart_equity_curve(report_example)
+```
+
+We can quickly see that between March 1, 2006 and December 31, 2017 (our data range), our strategy would have generated a final total portfolio value of `r report_example$ledger %>% filter(row_number() == n()) %>% select(Acct_Val)` during that timeframe.
+
+Or, through `tidyquant` and `PerformanceAnalytics`, we can generate some useful statistics about our strategy.
+
+```{r}
+require(tidyquant)
+
+return_calculate(report_example) %>% tq_performance(Ra = Returns, 
+                                                    performance_fun = SharpeRatio.annualized)
+
+return_calculate(report_example) %>% tq_performance(Ra = Returns, 
+                                                    performance_fun = table.Stats, 
+                                                    ci = 0.95, 
+                                                    digits = 4) 
+
+```
+
+`fluxcapacitor` also includes the ability to do brute force optimization on parameters.
+
+For instance, we can see whether a different length moving average would have provided better results:
+
+```{r}
+optimized_example <- init_strategy(universe) %>% optimize_strategy("TTR::SMA",
+                                          generator_args = list("x = CLOSE", "n = ?"),
+                                          optimize_range = seq(1, 300, 30),
+                                          signal = "CLOSE > ?")
+
+chart_optimizer(optimized_example)
+
+```
+
+
+The optimization shows that a `r optimized_example$Optimized$best` day moving average provides the largest profit among the sequence of moving averages tested. The strategy object also keeps track of the number of tests performed so that researchers can account for the risks of overfitting due to multiple testing bias (through measures like the deflated sharpe ratio, for instance).
+
+(Note that in order to write `fluxcapacitor` within the time constraints of this quarter, this package currently only provides in-sample optimization -- more useful extensions of that will be added in later development.)
+
+## Contributions of Team Members
+
+I worked alone on this project.
+
+## Extensions
+
+There are significant extensions to `fluxcapacitor`.
