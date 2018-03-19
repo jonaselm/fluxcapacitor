@@ -4,8 +4,15 @@ Title: A Quantitative Backtesting Engine
 Version: 0.1.0
 Author: Jonas Elmerraji
 Maintainer: Jonas Elmerraji <jonaselm@stanford.edu>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
+Description: fluxcapacitor is a quantitative backtesting engine that plays nicely within the tidyverse.
+    The package gets its name from the Back to the Future series of films -- like the flux capacitor in
+    Doc Brown's DeLorean, this package aims to facilitate "time travel", allowing financial researchers to
+    simulate the results of trading strategies.
 License: GPL-3
 Encoding: UTF-8
 LazyData: true
+Depends: tidyverse, rlang
+Suggests: knitr,
+    rmarkdown, tidyquant
+VignetteBuilder: knitr
+RoxygenNote: 6.0.1
