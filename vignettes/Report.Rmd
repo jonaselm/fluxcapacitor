@@ -90,7 +90,7 @@ report_example <- report_example %>%
                   backtest()
 ```
 
-Once the backtest has completed, analysis can be performed either with functions within `fluxcapacitor` or through existing analytics packages through the `tidyquant` package.
+Once the backtest has completed, analysis can be performed either with functions within `fluxcapacitor` or through existing analytics tools through the `tidyquant` package.
 
 For instance, a chart of our strategy's equity curve can be generated with the following line of code:
 
@@ -98,7 +98,7 @@ For instance, a chart of our strategy's equity curve can be generated with the f
 chart_equity_curve(report_example)
 ```
 
-We can quickly see that between March 1, 2006 and December 31, 2017 (our data range), our strategy would have generated a final total portfolio value of `r report_example$ledger %>% filter(row_number() == n()) %>% select(Acct_Val)` during that timeframe.
+We can quickly see that between March 1, 2006 and December 31, 2017 (our data range), our strategy would have generated a final total portfolio value of `r report_example$ledger %>% filter(row_number() == n()) %>% select(Acct_Val) %>% pull %>% format(nsmall=2)` during that timeframe.
 
 Or, through `tidyquant` and `PerformanceAnalytics`, we can generate some useful statistics about our strategy.
 
