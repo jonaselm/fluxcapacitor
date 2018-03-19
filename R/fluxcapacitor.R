@@ -6,7 +6,7 @@
 #' simulate the results of trading strategies.
 #'
 #' @details
-#'  To learn more about tidyquant, start with the vignettes:
+#'  To learn more about fluxcapacitor, start with the vignette:
 #'  `vignette("Report", package = "fluxcapacitor")`
 #'
 #' @docType package

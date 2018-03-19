@@ -12,6 +12,6 @@ Doc Brown's DeLorean, this package aims to facilitate "time travel", allowing fi
 simulate the results of trading strategies.
 }
 \details{
-To learn more about tidyquant, start with the vignettes:
+To learn more about fluxcapacitor, start with the vignette:
  `vignette("Report", package = "fluxcapacitor")`
 }
