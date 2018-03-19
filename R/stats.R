@@ -1,3 +1,16 @@
+#' Calculate strategy returns
+#'
+#' This function calulates the per-period returns for a backtested strategy object. This is useful for
+#' any portfolio analytics calculations that require portfolio values to be passed as returns. This function
+#' can calculate either arithmetic or log returns by specifying the method argument.
+#'
+#' @param strategy_object a strategy object
+#' @param method "arithmetic" or "log" returns.
+#'
+#' @return A tibble of dates and per-period returns
+#' @export
+#'
+#' @examples
 return_calculate <- function(strategy_object, method = "arithmetic") {
 
   value <- strategy_object$ledger %>% dplyr::select(Date, Acct_Val)
@@ -15,6 +28,22 @@ return_calculate <- function(strategy_object, method = "arithmetic") {
 }
 
 
+#' Calculate a strategy's Sharpe ratio
+#'
+#' The Sharpe ratio use used to measure risk-adjusted return. This function also implements a naive form
+#' of scaling. For instance, for daily periodicity, using 252 as the scaling factor will annualize the result.
+#' Note that per Andrew Lo's 2003 paper
+#' \link{https://papers.ssrn.com/sol3/papers.cfm?abstract_id=377260}{The Statistics of Sharpe Ratios}, this
+#' method is not recommended on its own except under very special circumstances.
+#'
+#' @param strategy_object a strategy object
+#' @param risk_free the risk-free rate, either numeric or a vector with the same periodicity as the strategy object's ledger.
+#' @param scale a scaling factor.
+#'
+#' @return a tibble contaning the strategy's Sharpe ratio.
+#' @export
+#'
+#' @examples
 sharpe_ratio <- function(strategy_object, risk_free = 0, scale = 1) {
 
   returns <- return_calculate(strategy_object) %>% dplyr::select(Returns)
@@ -30,6 +59,18 @@ sharpe_ratio <- function(strategy_object, risk_free = 0, scale = 1) {
 
 }
 
+#' Calculate a strategy's information ratio
+#'
+#' The information ratio is used to measure risk-adjusted return relative to a benchmark.
+#'
+#' @param strategy_object a strategy object
+#' @param benchmark_returns the benchmark returns, either numeric or a vector with the same
+#' periodicity as the strategy object's ledger.
+#'
+#' @return a tibble containing the strategy's information ratio
+#' @export
+#'
+#' @examples
 information_ratio <- function(strategy_object, benchmark_returns) {
 
   returns <- return_calculate(strategy_object) %>% dplyr::select(Returns)
@@ -46,6 +87,16 @@ information_ratio <- function(strategy_object, benchmark_returns) {
 
 }
 
+#' Calulate a strategy's drawdowns
+#'
+#' Drawdowns measure the performance deterioration from a previous high water mark.
+#'
+#' @param strategy_object a strategy object
+#'
+#' @return a tibble containing per-period drawdown statistics
+#' @export
+#'
+#' @examples
 strategy_drawdowns <- function(strategy_object) {
 
   drawdowns <- rep(0, nrow(strategy_object$ledger))
