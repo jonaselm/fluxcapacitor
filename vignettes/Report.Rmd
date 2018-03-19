@@ -28,9 +28,13 @@ This has been remedied in part by the introduction of packages like `tidyquant`,
 
 `fluxcapacitor` aims to fix that by providing a backtesting engine built around tidy data and the tidyverse.
 
+Inspiration for building a backtesting engine around tidy data pipelines came in part from [this blog post](https://ntguardian.wordpress.com/2017/05/22/the-end-of-the-honeymoon-falling-out-of-love-with-quantstrat/), which lays out some of the laments of the current library of packages available for quantitative strategy backtesting.
+
 The biggest challenge in implementing `fluxcapacitor` was a software engineering challenge, rather than actually implementing code.
 
 For `fluxcapacitor` to be a general enough backtesting engine to be useful, it was necessary to think in-depth about how a strategy would be approached before beginning to implement it. Ultimately, I decided to create strategy objects as "containers" for both the data used to backtest the strategy as well as the meta-data generated as part of the backtest for future analysis. 
+
+Using the strategy object approach also provides built-in benefits for reproducibility and logging as entire strategy objects can be saved and retreived using conventional R invocations, making it easy to keep track of tests.
 
 Some additional challenges came from the R language itself. The logical approach to looping through a data frame for trades proved extremely computationally expensive, in part because of the huge number of function calls that resulted from having data initially stored as a list of tibbles stored deep in the strategy object. The solution came from the tidyverse itself, where security price data could be contained within a single tibble and tidy data munging tools could be used to limit the amount of function calls made within for loops.
 
@@ -46,7 +50,7 @@ For our example use case, we'll look at a basic 200-day moving average crossover
 
 The securities data for the ETFs mentioned above are included in the `fluxcapacitor` package. For instance, data for SPY can be loaded by invoking the `data(SPY)`. Each ETF is xts formatted (a standard for financial time series data) and stored in a separate dataset to reflect how production data would be pulled into R through many popular APIs.
 
-```{r}
+```{r message=FALSE}
 require(fluxcapacitor)
 
 universe <- c("SPY", "EFA", "IEF", "DBC", "VNQ")
@@ -54,7 +58,9 @@ universe <- c("SPY", "EFA", "IEF", "DBC", "VNQ")
 data(list = c(universe))
 ```
 
-After loading the data, we can create a strategy object, compute our indicators and add trading signals using the pipe operator from the `magrittr` package. Building a backtesting pipeline using the %>% operator provides a clear visualization of how data flows from raw input data through our backtest results.  
+Alternatively, price data can be downloaded using the `tidyquant` and the `tq_get` function to pull tidy versions of data from popular APIs.
+
+After loading the data, we can create a strategy object, compute our indicators and add trading signals using the pipe operator from the `magrittr` package. Building a backtesting pipeline using the %>% operator provides a clear visualization of how data flows from raw input data through our backtest results. By default, the `init_strategy` function converts xts data into a tidy format using an internal wrapper function.
 
 To add indicators, we can use the `add_indicator` function, which adds a column to the data in the strategy object based on a generator function (in this case, the SMA function from the TTR package to add a 200-day simple moving average to each ETF). Note that thanks to dplyr's nonstandard evaluation and lazy evaluation in R, we are able to pass arguments to the generator function as we would if we were working with it directly.
 
@@ -78,7 +84,7 @@ One of the things that makes this approach powerful is that multiple signals can
 
 In order to actually backtest the strategy, we compile our signals of interest into a final trade indicator. This is done with the `compile_strategy()` function. Then the backtest is called using the `backtest()` function. 
 
-```{r}
+```{r echo=TRUE, results='hide'}
 report_example <- report_example %>% 
                   compile_strategy(signals = c("my_buy_signal", "my_sell_signal")) %>%
                   backtest()
@@ -96,7 +102,7 @@ We can quickly see that between March 1, 2006 and December 31, 2017 (our data ra
 
 Or, through `tidyquant` and `PerformanceAnalytics`, we can generate some useful statistics about our strategy.
 
-```{r}
+```{r message=FALSE}
 require(tidyquant)
 
 return_calculate(report_example) %>% tq_performance(Ra = Returns, 
@@ -113,7 +119,7 @@ return_calculate(report_example) %>% tq_performance(Ra = Returns,
 
 For instance, we can see whether a different length moving average would have provided better results:
 
-```{r}
+```{r echo=TRUE, results='hide'}
 optimized_example <- init_strategy(universe) %>% optimize_strategy("TTR::SMA",
                                           generator_args = list("x = CLOSE", "n = ?"),
                                           optimize_range = seq(1, 300, 30),
@@ -135,3 +141,11 @@ I worked alone on this project.
 ## Extensions
 
 There are significant extensions to `fluxcapacitor`.
+
+For the backtest engine itself, extentions include adding additional order types (such as limit orders), as well as providing mechanisms for adaptive position sizing rules and shorting.
+
+For optimization, the addition of walk-forward optimization (which includes out of sample testing for time series) is an important extension.
+
+And for logging, implementing a polished portal for aggregating backtest results (akin to the TensorBoard tools that come with TensorFlow, for instance) could be useful, either as a part of `fluxcapacitor` itself, or as a separate package.
+
+
