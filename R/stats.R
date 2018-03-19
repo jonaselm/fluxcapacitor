@@ -32,7 +32,7 @@ return_calculate <- function(strategy_object, method = "arithmetic") {
 #' The Sharpe ratio use used to measure risk-adjusted return. This function also implements a naive form
 #' of scaling. For instance, for daily periodicity, using 252 as the scaling factor will annualize the result.
 #' Note that per Andrew Lo's 2003 paper
-#' \link{https://papers.ssrn.com/sol3/papers.cfm?abstract_id=377260}{The Statistics of Sharpe Ratios}, this
+#' \href{https://papers.ssrn.com/sol3/papers.cfm?abstract_id=377260}{The Statistics of Sharpe Ratios}, this
 #' method is not recommended on its own except under very special circumstances.
 #'
 #' @param strategy_object a strategy object
