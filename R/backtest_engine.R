@@ -14,8 +14,8 @@
 #' @export
 #'
 #' @examples
-#' data(SPX)
-#' strat <- strategy("SPX")
+#' data(SPY)
+#' strat <- strategy("SPY")
 #'
 init_strategy <- function(universe) {
   if (!is.character(universe)) stop("Universe must be a character vector.")
@@ -70,7 +70,6 @@ init_strategy <- function(universe) {
 #' @return a strategy object
 #' @export
 #'
-#' @examples
 compile_strategy <- function(strategy_object, signals) {
 
   #Sanity Check
@@ -104,7 +103,6 @@ compile_strategy <- function(strategy_object, signals) {
 #' @return a strategy object
 #' @export
 #'
-#' @examples
 backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_fees = 0, init_equity = 100000, prior_tests = 0,
                      progress = TRUE) {
 

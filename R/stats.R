@@ -10,7 +10,6 @@
 #' @return A tibble of dates and per-period returns
 #' @export
 #'
-#' @examples
 return_calculate <- function(strategy_object, method = "arithmetic") {
 
   value <- strategy_object$ledger %>% dplyr::select(Date, Acct_Val)
@@ -43,7 +42,6 @@ return_calculate <- function(strategy_object, method = "arithmetic") {
 #' @return a tibble contaning the strategy's Sharpe ratio.
 #' @export
 #'
-#' @examples
 sharpe_ratio <- function(strategy_object, risk_free = 0, scale = 1) {
 
   returns <- return_calculate(strategy_object) %>% dplyr::select(Returns)
@@ -70,7 +68,6 @@ sharpe_ratio <- function(strategy_object, risk_free = 0, scale = 1) {
 #' @return a tibble containing the strategy's information ratio
 #' @export
 #'
-#' @examples
 information_ratio <- function(strategy_object, benchmark_returns) {
 
   returns <- return_calculate(strategy_object) %>% dplyr::select(Returns)
@@ -96,7 +93,6 @@ information_ratio <- function(strategy_object, benchmark_returns) {
 #' @return a tibble containing per-period drawdown statistics
 #' @export
 #'
-#' @examples
 strategy_drawdowns <- function(strategy_object) {
 
   drawdowns <- rep(0, nrow(strategy_object$ledger))

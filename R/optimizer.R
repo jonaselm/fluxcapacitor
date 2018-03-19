@@ -13,10 +13,9 @@
 #' @param optimize_range a range of values to optimize amongst.
 #' @param signal the signal to evaluate the reward function on.
 #'
-#' @return the value of optimize_range that results in the highest ledger balance.
+#' @return a strategy object with an Optimized entry
 #' @export
 #'
-#' @examples
 optimize_strategy <- function(strategy_object, generator, generator_args, optimize_range, signal) {
 
   generator_args_sequence <- lapply(optimize_range, FUN = function(x,generator_args){

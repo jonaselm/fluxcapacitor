@@ -23,7 +23,7 @@ the data for the backtest. For instance, a strategy being run on AAPL must have 
 must have an object named AAPL that contains the stock price data for AAPL.
 }
 \examples{
-data(SPX)
-strat <- strategy("SPX")
+data(SPY)
+strat <- strategy("SPY")
 
 }

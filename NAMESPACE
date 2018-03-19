@@ -3,7 +3,6 @@
 export(add_indicator)
 export(add_signal)
 export(backtest)
-export(backtest_deprecated)
 export(chart_equity_curve)
 export(chart_optimizer)
 export(chart_positions)

@@ -19,7 +19,7 @@ optimize_strategy(strategy_object, generator, generator_args, optimize_range,
 \item{signal}{the signal to evaluate the reward function on.}
 }
 \value{
-the value of optimize_range that results in the highest ledger balance.
+a strategy object with an Optimized entry
 }
 \description{
 This function can be used to find the optimal value of a range of values for a strategy parameter.

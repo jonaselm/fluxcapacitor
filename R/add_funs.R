@@ -11,7 +11,6 @@
 #' @return a strategy object with indicator applied to all securities
 #' @export
 #'
-#' @examples
 add_indicator <- function(strategy_object, indicator_name, generator, generator_args){
 
   #Sanity Check
@@ -41,7 +40,6 @@ add_indicator <- function(strategy_object, indicator_name, generator, generator_
 #' @return a strategy object with signal applied to all securities
 #' @export
 #'
-#' @examples
 add_signal <- function(strategy_object, signal_name, signal, direction = "buy", crossover = TRUE){
 
   #Sanity Check

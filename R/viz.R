@@ -4,10 +4,8 @@
 #'
 #' @param strategy_object a \code{\link{strategy}} object
 #'
-#' @return
 #' @export
 #'
-#' @examples
 chart_equity_curve <- function(strategy_object){
 
   strategy_object$ledger %>% ggplot2::ggplot(aes(x = Date, y = Acct_Val)) + ggplot2::geom_line() +
@@ -24,10 +22,8 @@ chart_equity_curve <- function(strategy_object){
 #' @param ticker the ticker symbol to chart
 #' @param use_price price column to chart
 #'
-#' @return
 #' @export
 #'
-#' @examples
 chart_positions <- function(strategy_object, ticker, use_price = "CLOSE"){
 
   security <- strategy_object$Data %>% dplyr::filter(Ticker == ticker) %>%
@@ -46,10 +42,8 @@ chart_positions <- function(strategy_object, ticker, use_price = "CLOSE"){
 #' @param ticker the ticker symbol to chart
 #' @param use_price price column to chart
 #'
-#' @return
 #' @export
 #'
-#' @examples
 chart_signals <- function(strategy_object, ticker, use_price = "CLOSE"){
 
   security <- strategy_object$Data %>% dplyr::filter(Ticker == ticker) %>%
@@ -71,10 +65,8 @@ chart_signals <- function(strategy_object, ticker, use_price = "CLOSE"){
 #'
 #' @param strategy_object a \code{\link{strategy}} object that's been produced by the optimize_strategy() function
 #'
-#' @return
 #' @export
 #'
-#' @examples
 chart_optimizer <- function(strategy_object){
 
   opt_data <- tibble(Parameter = strategy_object$Optimized$Parameters,
