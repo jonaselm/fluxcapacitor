@@ -15,7 +15,7 @@
 #'
 add_indicator <- function(strategy_object, indicator_name, generator, generator_args){
 
-  #Sanity Check
+  # Sanity Check
   if (!any(class(strategy_object) == "fc_strategy")) stop("add_indicator can only be applied to a strategy object.")
 
   indicator <- paste(generator, "(", paste(as.character(generator_args), collapse = ", "), ")", sep = "")
@@ -46,26 +46,21 @@ add_indicator <- function(strategy_object, indicator_name, generator, generator_
 #'
 add_signal <- function(strategy_object, signal_name, signal, direction = "buy", crossover = TRUE){
 
-  #Sanity Check
+  # Sanity Check
   if (!any(class(strategy_object) == "fc_strategy")) stop("add_signal can only be applied to a strategy object.")
-
     strategy_object$Data <- strategy_object$Data %>%
       dplyr::mutate(sig_result = eval(parse(text = signal))) %>%
       dplyr::mutate(sig_result = ifelse(sig_result == 0 | is.na(sig_result),0, 1))
 
     if (direction == "sell") {
-
       strategy_object$Data <- strategy_object$Data %>%
       dplyr::mutate(sig_result = -sig_result) #if short, use negative position
-
     }
 
     if (crossover == TRUE) {
-
       strategy_object$Data <- strategy_object$Data %>% dplyr::group_by(Ticker) %>%
         dplyr::mutate(sig_result = ifelse(sig_result != 0 & sig_result != dplyr::lag(sig_result, n = 1L), sig_result, 0)) %>%
         dplyr::ungroup()
-
     }
 
     strategy_object$Data <- strategy_object$Data %>% dplyr::rename(!!signal_name := sig_result)

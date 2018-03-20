@@ -107,7 +107,6 @@ strategy_drawdowns <- function(strategy_object) {
     if(max(prices[1:i]) > prices[i]) {
       drawdowns[i] <- (max(prices[1:i]) - prices[i]) / max(prices[1:i])
     }
-
   }
 
   strategy_object$ledger %>% dplyr::mutate(Drawdowns = drawdowns) %>% dplyr::select(Date, Drawdowns)

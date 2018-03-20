@@ -33,7 +33,6 @@ optimize_strategy <- function(strategy_object, generator, generator_args, optimi
 
   # For loop used here to take advantage of progress bar w/ negligible speed cost
   for (i in seq_along(generator_args_sequence)) {
-
     setTxtProgressBar(pb, i)
 
     results <- strategy_object %>%
@@ -51,19 +50,15 @@ optimize_strategy <- function(strategy_object, generator, generator_args, optimi
   close(pb)
 
   strategy_object$Optimized <- list( Parameters = optimize_range,
-                                     Equity = opt,
-                                     best = optimize_range[which.max(opt)]
+                                     Equity     = opt,
+                                     best       = optimize_range[which.max(opt)]
   )
 
   # Track tests for overfitting
   if (length(strategy_object$Tests) > 0) {
-
     strategy_object$Tests <- strategy_object$Tests + length(generator_args_sequence)
-
   } else {
-
     strategy_object$Tests <- length(generator_args_sequence)
-
   }
 
   return(strategy_object)

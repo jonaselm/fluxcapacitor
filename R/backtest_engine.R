@@ -22,30 +22,27 @@ init_strategy <- function(universe) {
   if (!is.character(universe)) stop("Universe must be a character vector.")
   if (!all(sapply(universe, base::exists))) stop("You must have data loaded for each security in universe. See documentation.")
 
-  #Create and format named list of universe data
-  strat_data <- lapply(universe, FUN = function(x){
+  # Create and format named list of universe data
+  strat_data <- lapply(universe, FUN = function(x) {
 
     stock <- get(noquote(x))
 
-    #Make sure data is in a usable format
+    # Make sure data is in a usable format
     if (!tibble::is_tibble(stock) & !xts::is.xts(stock)) stop("Price data must be in Tibble or xts format.")
     if (!xts::is.xts(stock) & !("Date" %in% colnames(stock))) stop(paste("No 'Date' column found in", ticker, "security.", sep = " "))
     if (!xts::is.xts(stock) & !("Ticker" %in% colnames(stock))) stop(paste("No 'Ticker' column found in", ticker, "security.", sep = " "))
 
 
-    #Convert any xts data to tibble w/ date column
+    # Convert any xts data to tibble w/ date column
     if (xts::is.xts(stock)) {
-
       stock_tibble <- xts_to_tibble(stock)
       stock_tibble <- stock_tibble %>% dplyr::mutate(Ticker = x)
 
       return(stock_tibble)
-
     }
 
-    #Otherwise, simply get tibble
+    # Otherwise, simply get tibble
     if (tibble::is.tibble(stock)) return(stock)
-
   })
 
   # Merge data into a single tibble
@@ -74,16 +71,13 @@ init_strategy <- function(universe) {
 #'
 compile_strategy <- function(strategy_object, signals) {
 
-  #Sanity Check
+  # Sanity Check
   if (!any(class(strategy_object) == "fc_strategy")) stop("backtesting can only be performed on a fluxcapacitor strategy object.")
-
 
   trades <- strategy_object$Data %>% dplyr::select(signals) %>% dplyr::transmute(Trade = rowSums(.))
   strategy_object$Data <- strategy_object$Data %>% base::cbind(trades)
 
-
   return(strategy_object)
-
 }
 
 #' Run a backtest on a strategy object
@@ -110,16 +104,13 @@ compile_strategy <- function(strategy_object, signals) {
 backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_fees = 0, init_equity = 100000, prior_tests = 0,
                      progress = TRUE) {
 
-
   # Initialize Progress Bar
-  if (progress == TRUE){
-
+  if (progress == TRUE) {
     cat("Backtesting Strategy: \n")
     pb <- txtProgressBar(style = 3)
-
   }
 
-  #Sanity Check
+  # Sanity Check
   if (!any(class(strategy_object) == "fc_strategy")) stop("backtesting can only be performed on a fluxcapacitor strategy object.")
 
   cash <- c(init_equity, rep(NA, nrow(strategy_object$Data) -1))
@@ -129,66 +120,50 @@ backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_f
     dplyr::ungroup() %>%
     dplyr::mutate(Cost = ifelse(is.na(Cost), 0, Cost), Cash = cash, Filled = NA, Tx = 0)
 
-
-
-  #Loop over transactions to update cash, positions, etc.
+  # Loop over transactions to update cash, positions, etc.
   positions <- rep(0, length(universe))
   names(positions) <- universe
 
-  for (i in 2:(nrow(bt)-1)){
-
+  for (i in 2:(nrow(bt)-1)) {
     # If a buy is signalled
     if (bt[["Trade"]][[i]] > 0){
 
       # Check for sufficient cash
-
       if (bt[["Cash"]][[i-1]] > bt[["Cost"]][[i]]){
-
         bt[["Cash"]][[i]] <- bt[["Cash"]][[i-1]] - bt[["Cost"]][[i]]
         positions[[bt[["Ticker"]][[i]]]] <- positions[[bt[["Ticker"]][[i]]]] + ordersize
         bt[["Filled"]][[i]] <- TRUE
         bt[["Tx"]][[i]] <- bt[["Trade"]][[i]] * ordersize
 
       } else {
-        # if cash is insufficient
-
+        # If cash is insufficient
         bt[["Cash"]][[i]] <- bt[["Cash"]][[i-1]]
         bt[["Filled"]][[i]] <- FALSE
         bt[["Tx"]][[i]] <- 0
-
       }
-
-
     } else if (bt[["Trade"]][[i]] < 0) {# if a sell is signalled
 
       # And a position exists to sell
       if(positions[[bt[["Ticker"]][[i]]]] >= ordersize){
-
         bt[["Cash"]][[i]] <- bt[["Cash"]][[i-1]] - bt[["Cost"]][[i]]
         positions[[bt[["Ticker"]][[i]]]] <- positions[[bt[["Ticker"]][[i]]]] - ordersize
         bt[["Filled"]][[i]] <- TRUE
         bt[["Tx"]][[i]] <- bt[["Trade"]][[i]] * ordersize
 
       } else {
-
-        #if no position to sell
-
+        # If no position to sell
         bt[["Cash"]][[i]] <- bt[["Cash"]][[i-1]]
         bt[["Filled"]][[i]] <- FALSE
         bt[["Tx"]][[i]] <- 0
-
-
       }
-    } else { #no trade
-
+    } else {
+      # No trade
       bt[["Cash"]][[i]] <- bt[["Cash"]][[i-1]]
       bt[["Filled"]][[i]] <- FALSE
       bt[["Tx"]][[i]] <- 0
-
     }
 
     if (progress == TRUE) setTxtProgressBar(pb, i/(nrow(bt)-2))
-
   }
 
   # Calculate values and remove last date (because trades cannot be evaluated without lag = 1)
@@ -202,13 +177,9 @@ backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_f
 
   # Track tests for overfitting
   if (length(strategy_object$Tests) > 0) {
-
     strategy_object$Tests <- strategy_object$Tests + 1
-
   } else {
-
     strategy_object$Tests <- 1
-
   }
 
   # Close progress bar
