@@ -44,7 +44,9 @@ add_indicator <- function(strategy_object, indicator_name, generator, generator_
 #' @importFrom magrittr %>%
 #' @importFrom rlang := !!
 #'
-add_signal <- function(strategy_object, signal_name, signal, direction = "buy", crossover = TRUE){
+add_signal <- function(strategy_object, signal_name, signal, direction = c("buy", "sell"), crossover = TRUE){
+
+  direction <- match.arg(direction)
 
   # Sanity Check
   if (!any(class(strategy_object) == "fc_strategy")) stop("add_signal can only be applied to a strategy object.")

@@ -5,13 +5,15 @@
 #' can calculate either arithmetic or log returns by specifying the method argument.
 #'
 #' @param strategy_object a strategy object
-#' @param method "arithmetic" or "log" returns.
+#' @param method Calulation method: "arithmetic" or "log" returns.
 #'
 #' @return A tibble of dates and per-period returns
 #' @export
 #' @importFrom magrittr %>%
 #'
-return_calculate <- function(strategy_object, method = "arithmetic") {
+return_calculate <- function(strategy_object, method = c("arithmetic", "log")) {
+
+  method <- match.arg(method)
 
   value <- strategy_object$ledger %>% dplyr::select(Date, Acct_Val)
 
@@ -22,7 +24,6 @@ return_calculate <- function(strategy_object, method = "arithmetic") {
   if (method == "log") {
     Returns <- value %>% dplyr::mutate(Returns = c(0, diff(log(Acct_Val)))) %>% dplyr::select(Date, Returns)
   }
-
 
     Returns
 }
