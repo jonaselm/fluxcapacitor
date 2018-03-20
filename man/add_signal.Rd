@@ -4,7 +4,7 @@
 \alias{add_signal}
 \title{Add a signal to your strategy}
 \usage{
-add_signal(strategy_object, signal_name, signal, direction = "buy",
+add_signal(strategy_object, signal_name, signal, direction = c("buy", "sell"),
   crossover = TRUE)
 }
 \arguments{

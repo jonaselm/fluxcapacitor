@@ -100,6 +100,17 @@ chart_equity_curve(report_example)
 
 We can quickly see that between March 1, 2006 and December 31, 2017 (our data range), our strategy would have generated a final total portfolio value of `r report_example$ledger %>% filter(row_number() == n()) %>% select(Acct_Val) %>% pull %>% format(nsmall=2)` during that timeframe.
 
+Built-in visualization functions in `fluxcapacitor` enable users to examine charts of positions as well as underlying trading signals:
+
+```{r}
+
+chart_positions(report_example, "SPY")
+
+chart_signals(report_example, "SPY")
+
+```
+
+
 Or, through `tidyquant` and `PerformanceAnalytics`, we can generate some useful statistics about our strategy.
 
 ```{r message=FALSE}
@@ -142,7 +153,7 @@ I worked alone on this project.
 
 There are significant extensions to `fluxcapacitor`.
 
-For the backtest engine itself, extentions include adding additional order types (such as limit orders), as well as providing mechanisms for adaptive position sizing rules and shorting.
+For the backtest engine itself, extentions include adding additional order types (such as limit orders), as well as providing mechanisms for adaptive position sizing rules and shorting. Speed increases for computationally-intensive backtests could eventually be added either through parallel processing support, or by converting the for loop in the backtest() function into C or C++ using Rcpp.
 
 For optimization, the addition of walk-forward optimization (which includes out of sample testing for time series) is an important extension.
 

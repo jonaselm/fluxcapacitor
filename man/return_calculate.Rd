@@ -4,12 +4,12 @@
 \alias{return_calculate}
 \title{Calculate strategy returns}
 \usage{
-return_calculate(strategy_object, method = "arithmetic")
+return_calculate(strategy_object, method = c("arithmetic", "log"))
 }
 \arguments{
 \item{strategy_object}{a strategy object}
 
-\item{method}{"arithmetic" or "log" returns.}
+\item{method}{Calulation method: "arithmetic" or "log" returns.}
 }
 \value{
 A tibble of dates and per-period returns

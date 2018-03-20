@@ -34,7 +34,8 @@ chart_positions <- function(strategy_object, ticker, use_price = "CLOSE"){
     dplyr::select(Date, use_price, Position) %>% reshape2::melt(id.vars = "Date")
 
   security %>% ggplot2::ggplot() + ggplot2::geom_line(aes(x = Date, y = value)) +
-    ggplot2::facet_grid(variable ~ ., scales = "free") + ggplot2::theme_bw()
+    ggplot2::facet_grid(variable ~ ., scales = "free") + ggplot2::theme_bw() +
+   ggplot2::labs(title = paste("Positions for", ticker, sep = " "))
 
 }
 
