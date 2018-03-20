@@ -11,7 +11,7 @@
 chart_equity_curve <- function(strategy_object){
 
   strategy_object$ledger %>% ggplot2::ggplot(aes(x = Date, y = Acct_Val)) + ggplot2::geom_line() +
-    ggplot2::labs(x = "Date", y = "Equity Curve", title = paste("Equity Curve for", substitute(strategy_object), sep = " ")) +
+    ggplot2::labs(x = "Date", y = "Equity", title = paste("Equity Curve for", substitute(strategy_object), sep = " ")) +
     ggplot2::theme_bw()
 
 }
