@@ -121,6 +121,7 @@ backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_f
     dplyr::mutate(Cost = ifelse(is.na(Cost), 0, Cost), Cash = cash, Filled = NA, Tx = 0)
 
   # Loop over transactions to update cash, positions, etc.
+  universe <- strategy_object$Universe
   positions <- rep(0, length(universe))
   names(positions) <- universe
 
