@@ -19,10 +19,11 @@
 #' strat <- init_strategy("SPY")
 #'
 init_strategy <- function(universe, data = FALSE) {
-  if (!is.character(universe)) stop("Universe must be a character vector.")
-  if (!all(sapply(universe, base::exists))) stop("You must have data loaded for each security in universe. See documentation.")
 
   if (data == FALSE) {
+    if (!is.character(universe)) stop("Universe must be a character vector.")
+    if (!all(sapply(universe, base::exists))) stop("You must have data loaded for each security in universe. See documentation.")
+
     # Create and format named list of universe data
     strat_data <- lapply(universe, FUN = function(x) {
 
