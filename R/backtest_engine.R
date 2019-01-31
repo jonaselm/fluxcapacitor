@@ -57,7 +57,7 @@ init_strategy <- function(universe, data = FALSE) {
     if (!("Date" %in% colnames(strat_data))) stop("No 'Date' column found in universe.")
     if (!("Ticker" %in% colnames(strat_data))) stop("No 'Ticker' column found in universe.")
 
-    universe <- strat_data %>% dplyr::select(Ticker) %>% dplyr::unique() %>% dplyr::pull()
+    universe <- strat_data %>% dplyr::select(Ticker) %>% base::unique() %>% dplyr::pull()
 
   }
 
@@ -131,13 +131,47 @@ backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_f
 
   if (weights == "equal"){
 
-    bt <- strategy_object$Data %>% dplyr::group_by(Date)
+    bt <- strategy_object$Data %>% dplyr::group_by(Date) %>% dplyr::mutate(n = sum(Trade)) %>%
+     dplyr::mutate(Cost = 0, Cash = cash, Filled = NA, Tx = 0)
 
-    bt <- strategy_object$Data %>% dplyr::group_by(Ticker) %>%
-      dplyr::mutate(Cost = Trade * ordersize * dplyr::lead(eval(parse(text = use_price)))) %>%
-      dplyr::ungroup() %>%
-      dplyr::mutate(Cost = ifelse(is.na(Cost), 0, Cost), Cash = cash, Filled = NA, Tx = 0)
+    # Loop over transactions to update cash, positions, etc.
+    universe <- strategy_object$Universe
+    positions <- rep(0, length(universe))
+    names(positions) <- universe
 
+    for (i in 2:(nrow(bt)-1)) {
+      # If a buy is signalled
+      if (bt[["Trade"]][[i]] > 0){
+
+          positions[[bt[["Ticker"]][[i]]]] <- positions[[bt[["Ticker"]][[i]]]] + (cash/n)
+          bt[["Filled"]][[i]] <- TRUE
+          bt[["Tx"]][[i]] <- bt[["Trade"]][[i]] * ordersize
+
+
+      } else if (bt[["Trade"]][[i]] < 0) {# if a sell is signalled
+
+        # And a position exists to sell
+        if(positions[[bt[["Ticker"]][[i]]]] >= ordersize){
+          bt[["Cash"]][[i]] <- bt[["Cash"]][[i-1]] - bt[["Cost"]][[i]]
+          positions[[bt[["Ticker"]][[i]]]] <- positions[[bt[["Ticker"]][[i]]]] - ordersize
+          bt[["Filled"]][[i]] <- TRUE
+          bt[["Tx"]][[i]] <- bt[["Trade"]][[i]] * ordersize
+
+        } else {
+          # If no position to sell
+          bt[["Cash"]][[i]] <- bt[["Cash"]][[i-1]]
+          bt[["Filled"]][[i]] <- FALSE
+          bt[["Tx"]][[i]] <- 0
+        }
+      } else {
+        # No trade
+        bt[["Cash"]][[i]] <- bt[["Cash"]][[i-1]]
+        bt[["Filled"]][[i]] <- FALSE
+        bt[["Tx"]][[i]] <- 0
+      }
+
+      if (progress == TRUE) setTxtProgressBar(pb, i/(nrow(bt)-2))
+    }
 
   } else if (weights == "standard"){
 
