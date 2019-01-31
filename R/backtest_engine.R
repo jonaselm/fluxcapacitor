@@ -116,7 +116,7 @@ compile_strategy <- function(strategy_object, signals) {
 #' @importFrom magrittr %>%
 #'
 backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_fees = 0, init_equity = 100000, prior_tests = 0,
-                     progress = TRUE, weights = "standard") {
+                     progress = TRUE) {
 
   # Initialize Progress Bar
   if (progress == TRUE) {
@@ -128,52 +128,6 @@ backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_f
   if (!any(class(strategy_object) == "fc_strategy")) stop("backtesting can only be performed on a fluxcapacitor strategy object.")
 
   cash <- c(init_equity, rep(NA, nrow(strategy_object$Data) -1))
-
-  if (weights == "equal"){
-
-    bt <- strategy_object$Data %>% dplyr::group_by(Date) %>% dplyr::mutate(n = sum(Trade)) %>%
-     dplyr::mutate(Cost = 0, Cash = cash, Filled = NA, Tx = 0)
-
-    # Loop over transactions to update cash, positions, etc.
-    universe <- strategy_object$Universe
-    positions <- rep(0, length(universe))
-    names(positions) <- universe
-
-    for (i in 2:(nrow(bt)-1)) {
-      # If a buy is signalled
-      if (bt[["Trade"]][[i]] > 0){
-
-          positions[[bt[["Ticker"]][[i]]]] <- positions[[bt[["Ticker"]][[i]]]] + (cash/n)
-          bt[["Filled"]][[i]] <- TRUE
-          bt[["Tx"]][[i]] <- bt[["Trade"]][[i]] * ordersize
-
-
-      } else if (bt[["Trade"]][[i]] < 0) {# if a sell is signalled
-
-        # And a position exists to sell
-        if(positions[[bt[["Ticker"]][[i]]]] >= ordersize){
-          bt[["Cash"]][[i]] <- bt[["Cash"]][[i-1]] - bt[["Cost"]][[i]]
-          positions[[bt[["Ticker"]][[i]]]] <- positions[[bt[["Ticker"]][[i]]]] - ordersize
-          bt[["Filled"]][[i]] <- TRUE
-          bt[["Tx"]][[i]] <- bt[["Trade"]][[i]] * ordersize
-
-        } else {
-          # If no position to sell
-          bt[["Cash"]][[i]] <- bt[["Cash"]][[i-1]]
-          bt[["Filled"]][[i]] <- FALSE
-          bt[["Tx"]][[i]] <- 0
-        }
-      } else {
-        # No trade
-        bt[["Cash"]][[i]] <- bt[["Cash"]][[i-1]]
-        bt[["Filled"]][[i]] <- FALSE
-        bt[["Tx"]][[i]] <- 0
-      }
-
-      if (progress == TRUE) setTxtProgressBar(pb, i/(nrow(bt)-2))
-    }
-
-  } else if (weights == "standard"){
 
     bt <- strategy_object$Data %>% dplyr::group_by(Ticker) %>%
       dplyr::mutate(Cost = Trade * ordersize * dplyr::lead(eval(parse(text = use_price)))) %>%
@@ -227,10 +181,6 @@ backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_f
       if (progress == TRUE) setTxtProgressBar(pb, i/(nrow(bt)-2))
     }
 
-  }
-
-
-
   # Calculate values and remove last date (because trades cannot be evaluated without lag = 1)
   strategy_object$Data <- bt %>% dplyr::group_by(Ticker) %>% dplyr::mutate(Position = cumsum(Tx)) %>%
     dplyr::ungroup() %>%
@@ -257,7 +207,110 @@ backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_f
 
 
 
+backtest_equal <- function(strategy_object, use_price = "CLOSE", tx_fees = 0, init_equity = 100000, prior_tests = 0,
+                     progress = TRUE) {
 
+  # Initialize Progress Bar
+  if (progress == TRUE) {
+    cat("Backtesting Strategy: \n")
+    pb <- txtProgressBar(style = 3)
+  }
+
+  # Sanity Check
+  if (!any(class(strategy_object) == "fc_strategy")) stop("backtesting can only be performed on a fluxcapacitor strategy object.")
+
+  bt <- strategy_object$Data %>% dplyr::group_by(Date) %>% dplyr::mutate(n = sum(Trade > 0), Equity = init_equity, Cost = 0,
+                                                                         Tx = 0, Position = 0) %>% ungroup()
+
+  bt <- bt %>% arrange(Date, desc(Trade))
+
+  # Loop over transactions to update cash, positions, etc.
+  universe <- strategy_object$Universe
+  positions <- rep(0, length(universe))
+  names(positions) <- universe
+
+  for (i in 2:(nrow(bt)-1)) {
+
+    row_date <- bt[["Date"]][[i]]
+    current_price <- bt[[use_price]][[i]]
+
+    # If a buy is signalled
+    if (bt[["Trade"]][[i]] > 0){
+
+      # Use the next price as entry (to avoid taking a price that happened before the signal)
+      buy_price <- bt %>% filter(Ticker == bt[["Ticker"]][[i]]) %>% mutate(px = lead(PX_LAST)) %>%
+        filter(Date == row_date) %>% select(px) %>% pull()
+
+      if(row_date == bt[["Date"]][[i-1]]){ # If row_date = prior row's date, cost = prior row's cost
+        bt[["Cost"]][[i]] <- bt[["Cost"]][[i-1]]
+      } else { #otherwise if new trading day, cost = yesterday's equity / number of today's trades, less fees
+        bt[["Cost"]][[i]] <- (bt[["Equity"]][[i-1]] / bt[["n"]][[i]]) - tx_fees
+      }
+      bt[["Tx"]][[i]] <- bt[["Cost"]][[i]] / buy_price
+      bt[["Position"]][[i]] <- bt[["Tx"]][[i]]
+      positions[[bt[["Ticker"]][[i]]]] <- bt[["Tx"]][[i]]
+
+      # Calculate equity based on the sum of positions
+      bt <- bt %>% group_by(Date) %>% dplyr::mutate(Equity = dplyr::case_when(
+                                    Date == row_date ~ sum(Cost),
+                                    Date != row_date ~ Equity)) %>% ungroup()
+
+    } else if (bt[["Trade"]][[i]] < 0) { # if a sell is signalled
+
+      bt[["Tx"]][[i]] <- -bt[["Position"]][[i - 1]]
+      bt[["Position"]][[i]] <- 0
+      positions[[bt[["Ticker"]][[i]]]] <- 0
+
+      # If we're only selling today (n <= 0), then carry forward yesterday's equity value. Otherwise, it'll be updated on the last buy row.
+      if (bt[["n"]][[i]] <= 0) bt <- bt %>% dplyr::mutate(Equity = dplyr::case_when(
+                                                Date == row_date ~ lag(Equity),
+                                                Date != row_date ~ Equity))
+
+    } else { # No trade
+
+      # Pull stock's prior position forward
+      bt[["Position"]][[i]] <- positions[[bt[["Ticker"]][[i]]]]
+
+      # Update equity based on current day's price
+      if(bt[["Position"]][[i]] == 0 ){ #If all cash
+
+        bt[["Equity"]][[i]] <- bt[["Equity"]][[i-1]]
+
+      } else { #if we have positions
+
+        bt <- bt %>% group_by(Date) %>% dplyr::mutate(Equity = dplyr::case_when(
+                                      Date == row_date ~ sum(Position * current_price),
+                                      Date != row_date ~ Equity)) %>% ungroup()
+
+      }
+    }
+
+    if (progress == TRUE) setTxtProgressBar(pb, i/(nrow(bt)-2))
+
+  }
+
+  # Calculate values and remove last date (because trades cannot be evaluated without lag = 1)
+  strategy_object$Data <- bt %>% dplyr::group_by(Ticker) %>% dplyr::mutate(Position = cumsum(Tx)) %>%
+    dplyr::ungroup() %>%
+    dplyr::mutate(Val = Position * eval(parse(text = use_price))) %>% dplyr::filter(Date != max(Date))
+
+  # Save ledger
+  strategy_object$ledger <- strategy_object$Data %>% dplyr::group_by(Date) %>%
+    dplyr::summarise(Equity = sum(Val))
+
+  # Track tests for overfitting
+  if (length(strategy_object$Tests) > 0) {
+    strategy_object$Tests <- strategy_object$Tests + 1
+  } else {
+    strategy_object$Tests <- 1
+  }
+
+  # Close progress bar
+  if (progress == TRUE) close(pb)
+
+  return(strategy_object)
+
+}
 
 
 
