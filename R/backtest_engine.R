@@ -206,9 +206,8 @@ backtest <- function(strategy_object, ordersize = 100, use_price = "CLOSE", tx_f
 
 
 
-
 backtest_equal <- function(strategy_object, use_price = "CLOSE", tx_fees = 0, init_equity = 100000, prior_tests = 0,
-                     progress = TRUE) {
+                           progress = TRUE) {
 
   # Initialize Progress Bar
   if (progress == TRUE) {
@@ -216,87 +215,89 @@ backtest_equal <- function(strategy_object, use_price = "CLOSE", tx_fees = 0, in
     pb <- txtProgressBar(style = 3)
   }
 
+  count_trades <- function(df) {
+    sum(df$Trade != 0)
+  }
+
   # Sanity Check
   if (!any(class(strategy_object) == "fc_strategy")) stop("backtesting can only be performed on a fluxcapacitor strategy object.")
 
-  bt <- strategy_object$Data %>% dplyr::group_by(Date) %>% dplyr::mutate(n = sum(Trade > 0), Equity = init_equity, Cost = 0,
-                                                                         Tx = 0, Position = 0) %>% ungroup()
+  bt <- strategy_object$Data %>% dplyr::group_by(Ticker) %>% dplyr::mutate(val = 0, cost = 0, tx = 0, position = 0,
+                                                                           next_price = dplyr::lead(eval(parse(text = use_price))))
 
-  bt <- bt %>% arrange(Date, desc(Trade))
+  # Collapse trades by date as a list-column, add equity column to parent tibble, and count trades per day
+  bt <- bt %>% group_by(Date) %>% tidyr::nest(.key = "securities") %>%
+    dplyr::mutate(equity = init_equity, n_trades = purrr::map_int(securities, count_trades))
 
-  # Loop over transactions to update cash, positions, etc.
+  # Loop over days to update cash, positions, etc. -- all actions within "securities" list-col can be vectorized
   universe <- strategy_object$Universe
   positions <- rep(0, length(universe))
   names(positions) <- universe
 
-  for (i in 2:(nrow(bt)-1)) {
+  for (i in 2:(nrow(bt) - 1)) {
 
-    row_date <- bt[["Date"]][[i]]
-    current_price <- bt[[use_price]][[i]]
+    # If no trades
+    if (bt[["n_trades"]][[i]] == 0){
+      if(sum(bt$securities[[i-1]][["position"]]) == 0) { # if no positions added yesterday, just pull equity from prior day
 
-    # If a buy is signalled
-    if (bt[["Trade"]][[i]] > 0){
+        bt$equity[[i]] <- bt$equity[[i-1]]
 
-      # Use the next price as entry (to avoid taking a price that happened before the signal)
-      buy_price <- bt %>% filter(Ticker == bt[["Ticker"]][[i]]) %>% mutate(px = lead(PX_LAST)) %>%
-        filter(Date == row_date) %>% select(px) %>% pull()
+      } else { # if we have positions on that day, update equity based on current day's price (vectorized)
 
-      if(row_date == bt[["Date"]][[i-1]]){ # If row_date = prior row's date, cost = prior row's cost
-        bt[["Cost"]][[i]] <- bt[["Cost"]][[i-1]]
-      } else { #otherwise if new trading day, cost = yesterday's equity / number of today's trades, less fees
-        bt[["Cost"]][[i]] <- (bt[["Equity"]][[i-1]] / bt[["n"]][[i]]) - tx_fees
-      }
-      bt[["Tx"]][[i]] <- bt[["Cost"]][[i]] / buy_price
-      bt[["Position"]][[i]] <- bt[["Tx"]][[i]]
-      positions[[bt[["Ticker"]][[i]]]] <- bt[["Tx"]][[i]]
+        # find where current security lives in the position object and update it
+        matching_securities <- which(names(positions) %in% bt$securities[[i]][["Ticker"]])
+        bt$securities[[i]][["position"]] <- positions[matching_securities]
 
-      # Calculate equity based on the sum of positions
-      bt <- bt %>% group_by(Date) %>% dplyr::mutate(Equity = dplyr::case_when(
-                                    Date == row_date ~ sum(Cost),
-                                    Date != row_date ~ Equity)) %>% ungroup()
+        # Calculate today's equity
+        bt$securities[[i]][["val"]] <- bt$securities[[i]][["position"]] * bt$securities[[i]][[use_price]]
 
-    } else if (bt[["Trade"]][[i]] < 0) { # if a sell is signalled
-
-      bt[["Tx"]][[i]] <- -bt[["Position"]][[i - 1]]
-      bt[["Position"]][[i]] <- 0
-      positions[[bt[["Ticker"]][[i]]]] <- 0
-
-      # If we're only selling today (n <= 0), then carry forward yesterday's equity value. Otherwise, it'll be updated on the last buy row.
-      if (bt[["n"]][[i]] <= 0) bt <- bt %>% dplyr::mutate(Equity = dplyr::case_when(
-                                                Date == row_date ~ lag(Equity),
-                                                Date != row_date ~ Equity))
-
-    } else { # No trade
-
-      # Pull stock's prior position forward
-      bt[["Position"]][[i]] <- positions[[bt[["Ticker"]][[i]]]]
-
-      # Update equity based on current day's price
-      if(bt[["Position"]][[i]] == 0 ){ #If all cash
-
-        bt[["Equity"]][[i]] <- bt[["Equity"]][[i-1]]
-
-      } else { #if we have positions
-
-        bt <- bt %>% group_by(Date) %>% dplyr::mutate(Equity = dplyr::case_when(
-                                      Date == row_date ~ sum(Position * current_price),
-                                      Date != row_date ~ Equity)) %>% ungroup()
+        bt$equity[[i]] <- sum(bt$securities[[i]][["val"]])
 
       }
+
+    } else if (bt[["n_trades"]][[i]] > 0) { # If a trade is signalled (we don't know if it's a buy or sell)
+
+      prior_equity <- bt$equity[[i-1]] # pull yesterday's equity value
+
+      # find where the current security lives in the position object and update it
+      matching_securities <- which(names(positions) %in% bt$securities[[i]][["Ticker"]])
+      bt$securities[[i]][["position"]] <- positions[matching_securities]
+
+      # If a sell, deduct trading costs, zero out position and update the position object, and add transaction
+      sell_costs <- tx_fees * sum(bt$securities[[i]][["Trade"]] < 0)
+      prior_equity <- prior_equity - sell_costs
+
+      bt$securities[[i]][["tx"]][which(bt$securities[[i]][["Trade"]] < 0)] <- -bt$securities[[i]][["position"]][which(bt$securities[[i]][["Trade"]] < 0)]
+      bt$securities[[i]][["position"]][which(bt$securities[[i]][["Trade"]] < 0)] <- 0
+      positions[bt$securities[[i]][["Ticker"]][which(bt$securities[[i]][["Trade"]] < 0)]] <- 0
+
+
+      # If a buy, give it an equal share of prior_equity, and update positions, transaction, and position object
+      buy_costs <- tx_fees * bt[["n_trades"]][[i]]
+
+      bt$securities[[i]][["val"]][which(bt$securities[[i]][["Trade"]] > 0)] <- (prior_equity - buy_costs)/bt[["n_trades"]][[i]]
+      bt$securities[[i]][["position"]][which(bt$securities[[i]][["Trade"]] > 0)] <- bt$securities[[i]][["val"]][which(bt$securities[[i]][["Trade"]] > 0)] / bt$securities[[i]][["next_price"]][which(bt$securities[[i]][["Trade"]] > 0)]
+      bt$securities[[i]][["tx"]][which(bt$securities[[i]][["Trade"]] > 0)] <- bt$securities[[i]][["val"]][which(bt$securities[[i]][["Trade"]] > 0)] / bt$securities[[i]][["next_price"]][which(bt$securities[[i]][["Trade"]] > 0)]
+      positions[bt$securities[[i]][["Ticker"]][which(bt$securities[[i]][["Trade"]] > 0)]] <- bt$securities[[i]][["position"]][which(bt$securities[[i]][["Trade"]] > 0)]
+
+      # Update equity
+      if(all(positions == 0)) bt$equity[[i]] <- prior_equity # If we sold out the portfolio, update equity to yesterday's minus tx costs
+      if(all(positions != 0)) bt$equity[[i]] <- sum(bt$securities[[i]][["val"]]) # Otherwise, sum remaining positions
+
     }
 
     if (progress == TRUE) setTxtProgressBar(pb, i/(nrow(bt)-2))
 
   }
 
-  # Calculate values and remove last date (because trades cannot be evaluated without lag = 1)
-  strategy_object$Data <- bt %>% dplyr::group_by(Ticker) %>% dplyr::mutate(Position = cumsum(Tx)) %>%
-    dplyr::ungroup() %>%
-    dplyr::mutate(Val = Position * eval(parse(text = use_price))) %>% dplyr::filter(Date != max(Date))
-
   # Save ledger
-  strategy_object$ledger <- strategy_object$Data %>% dplyr::group_by(Date) %>%
-    dplyr::summarise(Equity = sum(Val))
+  strategy_object$ledger <- bt %>% dplyr::group_by(Date) %>%
+    dplyr::summarise(Acct_Val = equity) %>% dplyr::filter(Date != max(Date))
+
+  # Unnest list-columns
+  strategy_object$Data <- bt %>% tidyr::unnest() %>% dplyr::filter(Date != max(Date))
+
+
 
   # Track tests for overfitting
   if (length(strategy_object$Tests) > 0) {
@@ -311,6 +312,7 @@ backtest_equal <- function(strategy_object, use_price = "CLOSE", tx_fees = 0, in
   return(strategy_object)
 
 }
+
 
 
 
